@@ -1,0 +1,12 @@
+/* src/index.css */
+@import "tailwindcss";
+
+@theme {
+  /* Définition de l'animation personnalisée */
+  --animate-infinite-scroll: infinite-scroll 45s linear infinite;
+
+  @keyframes infinite-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-100%); }
+  }
+}
