@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ShoppingCart, User, Menu, X, ChevronDown, 
-  Wrench, CircleDashed, MapPin, Settings, LogOut, Trash2, ArrowRight 
+  CircleDashed, MapPin, Settings, LogOut, Trash2, ArrowRight 
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -11,14 +11,14 @@ import { supabase } from '../../lib/supabase';
 // --- CONSTANTES ---
 const CATALOG_CATEGORIES = ["Pièces moteur", "Filtres et huile", "Direction / Suspension / Train", "Freinage", "Distribution et Accessoires", "Embrayage et Boîte de vitesse", "Démarrage électrique", "Optiques / Phares / Ampoules", "Capteurs et Sondes", "Essuie-glaces et pièces", "Echappement", "Carrosserie / Vitres / Peinture", "Pièces Habitacle", "Joints et Étanchéité", "Chauffage et Climatisation"];
 const TIRE_CATEGORIES = ["Pneus Tourisme", "Pneus 4x4 & SUV", "Pneus Utilitaires", "Jantes Alu & Tôle", "Enjoliveurs", "Accessoires Roues (Crics, etc.)"];
-const ACCESSORIES_CATEGORIES = ["Entretien et Nettoyage", "Accessoires Intérieurs", "Accessoires Extérieurs", "Attelage et Portage"];
 
 export default function Navbar() {
   const navigate = useNavigate();
   
+  // Correction : Synchronisation avec useCartStore (removeFromCart au lieu de removeItem)
   const totalItems = useCartStore((state) => state.getTotalItems());
   const cartItems = useCartStore((state) => state.items);
-  const removeItem = useCartStore((state) => state.removeItem);
+  const removeFromCart = useCartStore((state) => state.removeFromCart); 
   const cartTotal = useCartStore((state) => state.getTotalPrice());
 
   const { user, setUser } = useAuthStore();
@@ -37,7 +37,7 @@ export default function Navbar() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await supabase.signOut(); // Correction : supabase.signOut() suffit généralement selon ta lib
     setUser(null);
     navigate('/');
     closeMobileMenu();
@@ -72,6 +72,7 @@ export default function Navbar() {
 
           {/* DESKTOP NAV */}
           <div className="hidden xl:flex space-x-6 items-center">
+            {/* Dropdown Catalogue */}
             <div className="relative group">
               <button className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold py-8 text-sm uppercase tracking-tight">
                 Catalogue <ChevronDown className="h-4 w-4 transition-transform group-hover:rotate-180" />
@@ -92,6 +93,7 @@ export default function Navbar() {
               </div>
             </div>
 
+            {/* Dropdown Pneus */}
             <div className="relative group">
               <button className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold py-8 text-sm uppercase tracking-tight">
                 Pneus <ChevronDown className="h-4 w-4 transition-transform group-hover:rotate-180" />
@@ -167,7 +169,7 @@ export default function Navbar() {
                               <h4 className="text-[11px] font-bold text-slate-800 truncate">{item.name}</h4>
                               <p className="text-[10px] font-black text-blue-600 mt-0.5">{item.price.toLocaleString()} FCFA</p>
                             </div>
-                            <button onClick={() => removeItem(item.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors">
+                            <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -224,7 +226,7 @@ export default function Navbar() {
             <div className={`overflow-hidden transition-all duration-300 ${activeAccordion === 'catalog' ? 'max-h-[1000px] mt-4' : 'max-h-0'}`}>
               <div className="flex flex-col gap-2 pl-8 border-l-2 border-blue-100 ml-2">
                 {CATALOG_CATEGORIES.map((cat, i) => (
-                  <Link key={i} to={`/catalog?category=${cat}`} onClick={closeMobileMenu} className="text-sm font-medium text-slate-500 py-1">{cat}</Link>
+                  <Link key={i} to={`/catalog?category=${encodeURIComponent(cat)}`} onClick={closeMobileMenu} className="text-sm font-medium text-slate-500 py-1">{cat}</Link>
                 ))}
               </div>
             </div>
