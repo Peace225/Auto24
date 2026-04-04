@@ -1,4 +1,3 @@
-// src/pages/Catalog.tsx
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Filter, Settings, AlertCircle, ShoppingCart, Loader2 } from 'lucide-react';
@@ -6,16 +5,16 @@ import { useCartStore } from '../store/useCartStore';
 import { productService } from '../services/productService'; 
 import type { Product } from '../types';
 
+// Typage explicite pour le glob import de Vite
 const allImages = import.meta.glob('../assets/**/*.{png,jpg,jpeg,svg,webp}', { 
   eager: true, 
   query: '?url',
   import: 'default'
 }) as Record<string, string>;
 
-// 🟢 AJOUT DE TURBO ET INJECTION DANS LA LISTE
 const CATALOG_CATEGORIES = [
   "Outillage & Atelier", "Pneumatiques", "Huiles & Filtration",
-  "Pièces moteur", "Injection", "Turbo", // <-- Ajoutés ici
+  "Pièces moteur", "Injection", "Turbo",
   "Direction / Suspension / Train", 
   "Freinage", "Distribution et Accessoires", "Embrayage et Boîte de vitesse", 
   "Démarrage électrique", "Optiques / Phares / Ampoules", "Capteurs et Sondes", 
@@ -40,8 +39,9 @@ export default function Catalog() {
     const fetchCatalog = async () => {
       setIsLoading(true);
       try {
+        // Correction TS2345 : On s'assure que searchTerm est soit string soit undefined, jamais vide
         const data = await productService.getProducts({
-          searchTerm: searchTerm !== '' ? searchTerm : undefined
+          searchTerm: searchTerm.trim() !== '' ? searchTerm : undefined
         }); 
         setProducts(data);
       } catch (error) {
@@ -53,8 +53,10 @@ export default function Catalog() {
     fetchCatalog();
   }, [searchTerm, activeCategory]);
 
-  const getImageUrl = (filename: string | undefined, brand: string | null) => {
+  // Correction typage arguments
+  const getImageUrl = (filename: string | null | undefined, brand: string | null | undefined) => {
     if (!filename) return `https://placehold.co/400x400/f8fafc/2563eb?text=${brand || 'Piece'}`;
+    
     const imagePath = Object.keys(allImages).find(path => 
       path.toLowerCase().endsWith(`/${filename.toLowerCase()}`)
     );
@@ -62,35 +64,37 @@ export default function Catalog() {
   };
 
   const handleCategoryChange = (category: string) => {
+    const newParams = new URLSearchParams(searchParams);
     if (category === 'Toutes les pièces') {
-      searchParams.delete('category');
+      newParams.delete('category');
     } else {
-      searchParams.set('category', category);
+      newParams.set('category', category);
     }
-    searchParams.delete('searchTerm');
-    setSearchParams(searchParams);
+    newParams.delete('searchTerm');
+    setSearchParams(newParams);
     setSelectedBrands([]);
   };
 
-  // 🟢 LOGIQUE DE FILTRAGE RENFORCÉE POUR TURBO / INJECTION
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
+      // Sécurisation de l'accès aux catégories
       const catObj = (product as any).categories;
       const catName: string = typeof catObj === 'object' ? catObj?.name : (product as any).category;
       
-      const prodCat = catName?.trim().toLowerCase() || "";
+      const prodCat = (catName || "").trim().toLowerCase();
       const activeCat = activeCategory.trim().toLowerCase();
 
-      // Vérification large : si l'un contient l'autre 
-      // (Ex: "Turbo" matchera avec "Turbocompresseur")
       const matchCategory = activeCategory === 'Toutes les pièces' || 
         prodCat === activeCat || 
         prodCat.includes(activeCat) || 
         activeCat.includes(prodCat);
 
-      const matchBrand = selectedBrands.length === 0 || (product.brand && selectedBrands.includes(product.brand));
-      const matchStock = !inStockOnly || product.in_stock;
-      const matchCertified = !certifiedOnly || product.is_certified;
+      const matchBrand = selectedBrands.length === 0 || 
+        (product.brand && selectedBrands.includes(product.brand));
+      
+      // Utilisation du nullish coalescing pour éviter les erreurs sur les booléens
+      const matchStock = !inStockOnly || (product as any).in_stock;
+      const matchCertified = !certifiedOnly || (product as any).is_certified;
 
       return matchCategory && matchBrand && matchStock && matchCertified;
     });
@@ -105,7 +109,6 @@ export default function Catalog() {
 
   return (
     <div className="bg-slate-50 min-h-screen pb-20">
-      {/* HEADER */}
       <div className="bg-slate-900 py-10 md:py-16 border-b border-slate-800">
         <div className="max-w-[1440px] mx-auto px-6">
           <div className="flex items-center gap-2 text-blue-400 font-bold text-[10px] md:text-xs uppercase tracking-widest mb-3">
@@ -122,7 +125,6 @@ export default function Catalog() {
       </div>
 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-8">
-        {/* SIDEBAR */}
         <aside className="hidden lg:block w-72 flex-shrink-0">
           <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm sticky top-28">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-tighter mb-4 flex items-center gap-2 border-b border-slate-100 pb-4">
@@ -163,37 +165,40 @@ export default function Catalog() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredProducts.map((product) => {
-                const imageUrl = getImageUrl(product.image_url, product.brand);
-                return (
-                  <div key={product.id} className="bg-white border border-slate-100 rounded-[1.5rem] p-4 hover:shadow-xl transition-all group flex flex-col">
-                    <Link to={`/product/${product.id}`} className="h-48 flex items-center justify-center mb-4 overflow-hidden rounded-xl bg-slate-50">
-                      <img 
-                        src={imageUrl} 
-                        alt={product.name} 
-                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
-                      />
+              {filteredProducts.map((product) => (
+                <div key={product.id} className="bg-white border border-slate-100 rounded-[1.5rem] p-4 hover:shadow-xl transition-all group flex flex-col">
+                  <Link to={`/product/${product.id}`} className="h-48 flex items-center justify-center mb-4 overflow-hidden rounded-xl bg-slate-50">
+                    <img 
+                      src={getImageUrl(product.image_url, product.brand)} 
+                      alt={product.name} 
+                      className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
+                    />
+                  </Link>
+
+                  <div className="flex-grow">
+                    <span className="text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded">
+                      {product.brand || 'Générique'}
+                    </span>
+                    <Link to={`/product/${product.id}`} className="block mt-2">
+                      <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 line-clamp-2 uppercase leading-tight">
+                        {product.name}
+                      </h3>
                     </Link>
-
-                    <div className="flex-grow">
-                      <span className="text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded">{product.brand}</span>
-                      <Link to={`/product/${product.id}`} className="block mt-2">
-                        <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 line-clamp-2 uppercase leading-tight">{product.name}</h3>
-                      </Link>
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-                      <p className="text-lg font-black">{product.price.toLocaleString()} <span className="text-xs text-slate-500 font-medium">FCFA</span></p>
-                      <button 
-                        onClick={() => addToCart(product)}
-                        className="p-3 bg-slate-900 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-lg"
-                      >
-                        <ShoppingCart className="w-5 h-5" />
-                      </button>
-                    </div>
                   </div>
-                );
-              })}
+
+                  <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                    <p className="text-lg font-black">
+                      {(product.price || 0).toLocaleString()} <span className="text-xs text-slate-500 font-medium">FCFA</span>
+                    </p>
+                    <button 
+                      onClick={() => addToCart(product)}
+                      className="p-3 bg-slate-900 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-lg active:scale-90"
+                    >
+                      <ShoppingCart className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </main>

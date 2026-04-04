@@ -1,48 +1,69 @@
-// src/hooks/useAuth.ts
 import { useState, useEffect } from 'react';
-// 🟢 CORRECTION : Utilisation de "import type" pour éviter les erreurs de module Vite
-import type { Session, User } from '@supabase/supabase-js';
+// Correction TS6196 & TS1484 : Utilisation de "import type" 
+// et suppression des types inutilisés si nécessaire
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/useAuthStore'; // On importe ton store global
+import { useAuthStore } from '../store/useAuthStore';
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // On récupère la fonction pour mettre à jour le store global
+  // Utilisation directe du store pour la source de vérité
   const setUserStore = useAuthStore((state) => state.setUser);
   const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
-    // 1. Récupérer la session active au chargement initial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUserStore(session?.user ?? null); // Mise à jour du store global
-      setLoading(false);
-    });
+    let mounted = true;
 
-    // 2. Écouter les changements en temps réel (Login, Logout, Refresh Token)
+    // 1. Récupération initiale de la session
+    const getInitialSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (mounted) {
+        if (error) console.error("Auth Error:", error.message);
+        setSession(session);
+        setUserStore(session?.user ?? null);
+        setLoading(false);
+      }
+    };
+
+    getInitialSession();
+
+    // 2. Écoute des changements d'état (Login, Logout, Token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUserStore(session?.user ?? null); // Synchronisation automatique du store
-      setLoading(false);
+      if (mounted) {
+        setSession(session);
+        setUserStore(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [setUserStore]);
 
   const signOut = async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
-    setUserStore(null); // On nettoie le store manuellement par sécurité
-    setLoading(false);
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Le store est déjà nettoyé par onAuthStateChange, 
+      // mais on peut forcer ici par précaution
+      setUserStore(null); 
+    } catch (error: any) {
+      console.error("Logout failed:", error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return { 
     session, 
-    user, // Vient maintenant du store global (Source de vérité unique)
+    user, 
     loading, 
     signOut,
     isAuthenticated: !!user 
