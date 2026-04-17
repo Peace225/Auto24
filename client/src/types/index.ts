@@ -8,15 +8,21 @@ export interface Product {
   category_id: string;
   vehicle_id?: string | null;
   vendor_id: string;
-  image_url: string;
+  
+  // 🟢 CORRECTION : Support d'une ou plusieurs images pour correspondre à Supabase
+  image_url?: string; 
+  images?: string[]; 
+  
   is_boosted: boolean;
   // Champs optionnels synchronisés avec les filtres du catalogue
-  brand: string; // Mis en requis car essentiel pour le filtrage SpaceAuto24
-  in_stock: boolean; // Mis en requis pour la gestion du bouton panier
+  brand: string; 
+  in_stock: boolean; 
   is_certified?: boolean;
+  
   // Spécificités huiles (MotorOil)
   viscosity?: string | null; 
   capacity?: string | number | null;  
+  
   // Spécificités pneus et accessoires
   dimensions?: string | null;
   spec?: string | null;
@@ -38,9 +44,12 @@ export interface Vendor {
   id: string;
   user_id: string;
   shop_name: string;
-  plan_type: 'freemium' | 'pro';
+  
+  // 🟢 CORRECTION : Alignement avec nos 3 packages vendeurs
+  plan_type: 'free' | 'pro' | 'premium'; 
+  
   verified_badge: boolean;
-  vendor_status?: 'pending' | 'approved' | 'rejected';
+  vendor_status?: 'unverified' | 'pending' | 'approved' | 'rejected'; // Ajout de 'unverified'
   commune?: string;
 }
 
@@ -49,13 +58,12 @@ export interface Garage {
   name: string;
   commune: string;
   address?: string;
-  rating: number; // Requis pour le rendu des étoiles
+  rating: number; 
   reviews_count?: number;
-  // Correction CRITIQUE : synchronisation avec 'specialties' (tableau) du service
   specialties: string[]; 
   is_certified: boolean;
   whatsapp_number: string;
-  image_url: string; // Requis pour l'affichage des cartes garages
+  image_url: string; 
 }
 
 export interface Category {

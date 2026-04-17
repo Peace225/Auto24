@@ -5,9 +5,11 @@ import {
   PackageSearch, 
   CreditCard, 
   Gavel, 
-  LogOut 
+  LogOut,
+  PlusCircle // 🟢 Ajout de l'icône pour le bouton de création
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase'; // Vérifie que le chemin remonte bien vers src/lib
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 
 interface SidebarProps {
   activeTab: string;
@@ -16,14 +18,12 @@ interface SidebarProps {
 
 export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) {
   const navigate = useNavigate();
+  const { setUser } = useAuthStore();
 
   // --- CONFIGURATION DU POSITIONNEMENT ---
-  // navbarHeight (64px) + subHeaderHeight (60px) = 124px
-  const navbarHeight = 64; 
-  const subHeaderHeight = 60;
-  const totalOffset = navbarHeight + subHeaderHeight;
+  // Calage précis sous le SubHeader (70px)
+  const totalOffset = 70; 
 
-  // --- ÉLÉMENTS DU MENU ---
   const menuItems = [
     { id: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'sellers', icon: Users, label: 'Vendeurs' },
@@ -35,22 +35,40 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
+      setUser(null);
       navigate('/login');
-    } else {
-      console.error("Erreur déconnexion:", error.message);
     }
   };
 
   return (
     <aside 
-      className="w-20 lg:w-64 border-r border-slate-800 flex flex-col py-8 px-4 gap-8 bg-[#0B0F1A] sticky overflow-y-auto z-30"
+      className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-8 bg-[#0B0F1A] sticky z-30"
       style={{ 
         top: `${totalOffset}px`, 
         height: `calc(100vh - ${totalOffset}px)`,
-        transition: 'top 0.3s ease'
       }}
     >
-      {/* NAVIGATION */}
+      {/* LABEL DE SECTION */}
+      <div className="px-4">
+        <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">
+          Menu Principal
+        </p>
+      </div>
+
+      {/* 🟢 BOUTON D'ACTION PRINCIPAL : CRÉER BOUTIQUE */}
+      <div className="px-4 -mt-2">
+        <button 
+          onClick={() => setActiveTab('create-store')}
+          className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white transition-all group shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)] active:scale-95"
+        >
+          <PlusCircle className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
+          <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
+            Créer Boutique
+          </span>
+        </button>
+      </div>
+
+      {/* NAVIGATION TABS */}
       <nav className="flex flex-col gap-2 w-full flex-1">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
@@ -59,31 +77,46 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all group ${
+              className={`flex items-center justify-between px-4 py-4 rounded-2xl transition-all group relative ${
                 isActive 
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_rgba(37,99,235,0.05)]' 
-                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 border border-transparent'
+                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10 shadow-[0_0_20px_rgba(37,99,235,0.05)]' 
+                : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'
               }`}
             >
-              <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'group-hover:scale-110 transition-transform'}`} />
-              <span className="hidden lg:block text-[10px] font-black uppercase tracking-[0.15em]">
-                {item.label}
-              </span>
+              <div className="flex items-center gap-4">
+                <item.icon className={`w-5 h-5 transition-transform duration-500 ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110'}`} />
+                <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
+                  {item.label}
+                </span>
+              </div>
+
+              {/* Petit indicateur actif à droite */}
+              {isActive && (
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
+              )}
             </button>
           );
         })}
       </nav>
 
-      {/* DÉCONNEXION */}
-      <button 
-        onClick={handleLogout}
-        className="flex items-center gap-4 px-4 py-4 rounded-2xl text-red-500/50 hover:text-red-400 hover:bg-red-500/5 transition-all mt-auto border border-transparent hover:border-red-500/10"
-      >
-        <LogOut className="w-5 h-5" />
-        <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">
-          Déconnexion
-        </span>
-      </button>
+      {/* DÉCONNEXION EN BAS */}
+      <div className="pt-6 border-t border-white/5">
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-4 px-4 py-4 rounded-2xl text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition-all w-full group"
+        >
+          <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+            Déconnexion
+          </span>
+        </button>
+        
+        <div className="mt-4 px-4">
+          <p className="text-[7px] font-black text-slate-800 uppercase tracking-[0.4em]">
+            SpaceAuto System v3.1
+          </p>
+        </div>
+      </div>
     </aside>
   );
 }

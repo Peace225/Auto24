@@ -1,303 +1,268 @@
 import { useState, useEffect } from 'react';
-import { 
-  BarChart3, PlusCircle, Box, TrendingUp, PackageCheck, 
-  Truck, Star, Search, MoreVertical, 
-  ArrowUpRight, AlertCircle, Loader2, Eye, Activity
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Package, ShoppingCart, TrendingUp, ShieldAlert, CheckCircle2, ArrowRight, Star, Zap, Crown, BarChart3, Users, Rocket } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 
-interface VendorStats {
-  monthlySales: number;
-  pendingDeliveries: number;
-  lowStockCount: number;
-  rating: number;
-  totalViews: number;
-  activeProducts: number;
-}
+// Fausses données pour l'exemple
+const RECENT_ORDERS = [
+  { id: 'SA24-0012', client: 'Kouassi Jean', status: 'En attente', amount: 45000, date: 'Aujourd\'hui' },
+  { id: 'SA24-0011', client: 'Touré Marc', status: 'Livré', amount: 120000, date: 'Hier' },
+];
 
-export default function VendorDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<VendorStats>({
-    monthlySales: 0,
-    pendingDeliveries: 0,
-    lowStockCount: 0,
-    rating: 4.8,
-    totalViews: 12453,
-    activeProducts: 0
-  });
-  const [orders, setOrders] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+const PACKAGES = [
+  {
+    id: 'free',
+    name: 'Essentiel',
+    price: '0 CFA',
+    icon: <Star className="w-5 h-5 text-slate-400" />,
+    features: ['10 produits max', 'Visibilité basique'],
+    color: 'slate'
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '5 000',
+    icon: <Zap className="w-5 h-5 text-white" />,
+    badge: 'CHOIX N°1',
+    features: ['Stock illimité', 'Vendeur Fiable'],
+    color: 'blue'
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    price: '15 000',
+    icon: <Crown className="w-5 h-5 text-orange-500" />,
+    features: ['Bannière Accueil', 'Commission 1%'],
+    color: 'orange'
+  }
+];
 
-  // 1. Initialisation des données
+export default function VendorDashboardPage() {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const [vendorData, setVendorData] = useState({ status: 'unverified', plan: 'free' });
+  const [isLoaded, setIsLoaded] = useState(false);
+
   useEffect(() => {
-    fetchVendorData();
-
-    // 2. LOGIQUE TEMPS RÉEL (REALTIME)
-    // On écoute les changements sur 'transactions' pour mettre à jour le dashboard instantanément
-    const transactionsChannel = supabase
-      .channel('dashboard-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions' },
-        () => fetchVendorData() // Rafraîchit les stats et la liste au moindre changement
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(transactionsChannel);
-    };
-  }, []);
-
-  const fetchVendorData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
+    const fetchData = async () => {
       if (!user) return;
-
-      // Récupération simultanée pour de meilleures performances
-      const [transResponse, productsResponse] = await Promise.all([
-        supabase.from('transactions').select('*').eq('vendor_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('products').select('stock').eq('vendor_id', user.id)
-      ]);
-
-      const transData = transResponse.data || [];
-      const productsData = productsResponse.data || [];
-
-      // Calcul des stats
-      const currentMonth = new Date().getMonth();
-      const monthlyTotal = transData.reduce((acc, t) => {
-        const orderDate = new Date(t.created_at);
-        return orderDate.getMonth() === currentMonth ? acc + (Number(t.total_amount) || 0) : acc;
-      }, 0);
-
-      const pending = transData.filter(t => 
-        ['pending', 'processing', 'À préparer'].includes(t.status)
-      ).length;
-
-      const lowStock = productsData.filter(p => (p.stock || 0) < 5).length;
-
-      setStats(prev => ({
-        ...prev,
-        monthlySales: monthlyTotal,
-        pendingDeliveries: pending,
-        lowStockCount: lowStock,
-        activeProducts: productsData.length
-      }));
-
-      setOrders(transData);
-    } catch (error) {
-      console.error("Erreur Dashboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-[#F8FAFC]">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Initialisation SpaceAuto24...</p>
-      </div>
-    </div>
-  );
-
-  const filteredOrders = orders.filter(order => {
-    const search = searchTerm.toLowerCase();
-    return (
-      (order.customer_name?.toLowerCase() || '').includes(search) || 
-      (order.id?.toLowerCase() || '').includes(search)
-    );
-  });
-
-  const kpiCards = [
-    { label: 'Ventes du mois', value: `${stats.monthlySales.toLocaleString()} CFA`, icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'En attente', value: stats.pendingDeliveries.toString().padStart(2, '0'), icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Vues Profil', value: stats.totalViews.toLocaleString(), icon: Eye, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Note Vendeur', value: `${stats.rating}/5`, icon: Star, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-  ];
+      const { data } = await supabase
+        .from('profiles')
+        .select('vendor_status, subscription_plan')
+        .eq('id', user.id)
+        .single();
+        
+      if (data) {
+        setVendorData({ 
+          status: data.vendor_status || 'unverified', 
+          plan: data.subscription_plan || 'free' 
+        });
+      }
+      setTimeout(() => setIsLoaded(true), 100);
+    };
+    fetchData();
+  }, [user]);
 
   return (
-    <div className="animate-in fade-in duration-700 pt-28 pb-20 px-8 max-w-[1600px] mx-auto">
+    <div className={`space-y-5 md:space-y-8 w-full transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
       
-      {/* HEADER PROFESSIONNEL */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-md">
-        <div className="flex items-center gap-5">
-          <div className="h-16 w-16 bg-slate-900 rounded-[1.5rem] flex items-center justify-center shadow-xl shadow-slate-900/10">
-            <Activity className="w-8 h-8 text-orange-500" />
-          </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-[1000] uppercase text-slate-900 tracking-tighter">Console Vendeur</h1>
-            <div className="flex items-center gap-2 mt-1">
-               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-               <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em]">Live Status • SpaceAuto24</p>
+      {/* 🔴 SECTION UPSELL */}
+      {vendorData.plan === 'free' && (
+        <div className="bg-slate-900 rounded-3xl md:rounded-[2rem] shadow-2xl relative overflow-hidden border border-slate-800 group mt-2 w-full">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 via-emerald-400 to-orange-500"></div>
+          
+          {/* Effet lumineux de fond */}
+          <div className="absolute top-1/2 left-1/4 w-72 h-72 md:w-96 md:h-96 bg-blue-600/10 rounded-full blur-[80px] pointer-events-none transition-all duration-1000"></div>
+          
+          <div className="p-5 md:p-8 lg:p-12 flex flex-col xl:flex-row gap-8 lg:gap-12 items-center relative z-10 w-full">
+            
+            {/* Partie Gauche : Éducation & Preuve Sociale */}
+            <div className="w-full xl:w-5/12 text-center xl:text-left">
+              <div className="inline-flex items-center gap-1.5 bg-white/5 text-blue-400 px-3 py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-4 border border-white/10 backdrop-blur-sm">
+                <Rocket className="w-3.5 h-3.5" /> Propulsez vos ventes
+              </div>
+              <h2 className="text-[1.35rem] sm:text-3xl lg:text-4xl font-black text-white uppercase tracking-tight mb-5 leading-tight">
+                Vendez <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">4x plus</span> en Pro.
+              </h2>
+              
+              <div className="space-y-4 text-left max-w-sm mx-auto xl:mx-0">
+                <div className="flex gap-3 md:gap-4 items-start">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center shrink-0 border border-blue-500/20 shadow-lg">
+                    <CheckCircle2 className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-black text-xs md:text-sm uppercase tracking-tight mb-0.5">Faites sauter la limite</h4>
+                    <p className="text-slate-400 text-[10px] md:text-xs leading-relaxed font-medium">Ne laissez pas votre potentiel bloqué à 10 pièces.</p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 md:gap-4 items-start">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center shrink-0 border border-emerald-500/20 shadow-lg">
+                    <Users className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-black text-xs md:text-sm uppercase tracking-tight mb-0.5">Badge de Confiance</h4>
+                    <p className="text-slate-400 text-[10px] md:text-xs leading-relaxed font-medium">Les vendeurs vérifiés convertissent 80% en plus.</p>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Partie Droite : Les Grilles de Prix */}
+            <div className="w-full xl:w-7/12 grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-4">
+              {PACKAGES.map((pkg) => (
+                <div 
+                  key={pkg.id} 
+                  onClick={() => navigate('/vendor/settings')}
+                  className={`rounded-2xl p-4 sm:p-5 relative transition-all duration-300 cursor-pointer flex flex-col h-full group/card
+                    ${pkg.id === 'pro' 
+                      ? 'bg-blue-600 border-none shadow-xl shadow-blue-600/40 md:-translate-y-3 md:scale-105 z-10' 
+                      : 'bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-md z-0'}
+                  `}
+                >
+                  {pkg.badge && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-blue-900 px-3 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest whitespace-nowrap shadow-lg">
+                      {pkg.badge}
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col items-center text-center mb-4 sm:mb-6 pt-2">
+                    <div className={`p-2.5 rounded-xl mb-2 sm:mb-3 transition-transform group-hover/card:scale-110 duration-300 ${pkg.id === 'pro' ? 'bg-white/20' : 'bg-slate-800'}`}>
+                      {pkg.icon}
+                    </div>
+                    <h3 className={`font-black uppercase tracking-tight text-xs sm:text-sm mb-1 ${pkg.id === 'pro' ? 'text-white' : 'text-slate-200'}`}>{pkg.name}</h3>
+                    <div className={`text-xl sm:text-2xl font-black leading-none ${pkg.id === 'pro' ? 'text-white' : 'text-white'}`}>
+                      {pkg.price} {pkg.id !== 'free' && <span className={`text-[8px] sm:text-[9px] font-bold tracking-widest uppercase ${pkg.id === 'pro' ? 'text-blue-200' : 'text-slate-500'}`}>/mois</span>}
+                    </div>
+                  </div>
+
+                  <ul className="space-y-2 mb-4 sm:mb-6 flex-grow">
+                    {pkg.features.map((feat, i) => (
+                      <li key={i} className={`flex items-start gap-1.5 text-[9px] sm:text-[10px] font-bold leading-tight ${pkg.id === 'pro' ? 'text-blue-50' : 'text-slate-400'}`}>
+                        <CheckCircle2 className={`w-3 h-3 shrink-0 ${pkg.id === 'pro' ? 'text-white' : 'text-slate-600'}`} /> 
+                        {feat}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button className={`w-full py-2.5 sm:py-3 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all mt-auto
+                    ${pkg.id === 'pro' 
+                      ? 'bg-white text-blue-900 hover:bg-slate-100 shadow-md' 
+                      : 'bg-white/10 text-white hover:bg-white/20'}
+                  `}>
+                    Choisir
+                  </button>
+                </div>
+              ))}
+            </div>
+            
           </div>
         </div>
-        
-        <Link to="/vendor/products" className="bg-slate-900 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-orange-600 transition-all active:scale-95 shadow-lg shadow-slate-900/10">
-          <PlusCircle className="w-5 h-5 text-orange-500" /> Ajouter une pièce
-        </Link>
-      </div>
+      )}
 
-      {/* KPI GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-        {kpiCards.map((kpi, i) => (
-          <div key={i} className="bg-white p-8 rounded-[2.8rem] border border-slate-100 shadow-sm flex flex-col gap-5 hover:border-orange-500/30 transition-all hover:-translate-y-1 group">
-            <div className={`h-14 w-14 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-              <kpi.icon className="w-7 h-7" />
+      {/* ALERTE CERTIFICATION */}
+      {vendorData.status !== 'approved' && (
+        <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm w-full">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center shrink-0">
+               <ShieldAlert className="w-5 h-5 text-orange-600" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{kpi.label}</p>
-              <p className="text-3xl font-[1000] tracking-tighter text-slate-900 mt-1">{kpi.value}</p>
+              <h3 className="font-black text-orange-900 uppercase text-[11px] sm:text-xs mb-0.5">Identité Non Vérifiée</h3>
+              <p className="text-[9px] sm:text-[10px] font-bold text-orange-700/80 tracking-wide">Fournissez vos documents (RCCM & CNI).</p>
             </div>
           </div>
-        ))}
-      </div>
+          <Link to="/vendor/settings" className="w-full sm:w-auto text-center whitespace-nowrap bg-orange-600 text-white px-5 py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] hover:bg-orange-700 transition-all shadow-md active:scale-95">
+            Fournir documents
+          </Link>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 space-y-10">
-          
-          {/* ANALYSE VISUELLE */}
-          <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
-             <div className="flex justify-between items-center mb-10">
-                <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-3">
-                  <BarChart3 className="w-5 h-5 text-orange-500" /> Analyse des Revenus
-                </h3>
-                <div className="h-2 w-32 bg-slate-50 rounded-full overflow-hidden">
-                   <div className="h-full bg-orange-500 w-[65%]"></div>
-                </div>
-             </div>
-             <div className="h-56 w-full bg-slate-50/50 rounded-3xl flex items-end px-6 pb-6 gap-3">
-                {[40, 70, 45, 90, 65, 120, 85].map((height, idx) => (
-                  <div key={idx} className="flex-1 bg-slate-200/50 rounded-xl hover:bg-orange-500 transition-all cursor-pointer relative group" style={{ height: `${height}%` }}>
-                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-all">+{height}k</div>
-                  </div>
-                ))}
-             </div>
-          </div>
-
-          {/* TABLEAU FONCTIONNEL */}
-          <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-            <div className="flex flex-col md:flex-row justify-between items-center p-10 border-b border-slate-50 gap-6">
-              <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-3">
-                <PackageCheck className="w-5 h-5 text-orange-500" /> Flux de Ventes
-              </h3>
-              <div className="relative w-full md:w-auto">
-                <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="RECHERCHER UNE TRANSACTION..." 
-                  className="w-full md:w-72 pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-[10px] font-black outline-none focus:ring-2 focus:ring-orange-500/20 transition-all" 
-                />
-              </div>
+      {/* STATISTIQUES */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md group">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="px-10 py-5">Référence / Client</th>
-                    <th className="px-10 py-5">Statut</th>
-                    <th className="px-10 py-5 text-right">Montant</th>
-                    <th className="px-10 py-5 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 font-bold text-xs">
-                  {filteredOrders.length > 0 ? filteredOrders.slice(0, 6).map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <td className="px-10 py-6">
-                        <p className="text-slate-900 font-[1000] text-[11px] tracking-tight">#{order.id?.slice(0,8).toUpperCase()}</p>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-tighter">{order.customer_name || 'Client Direct'}</p>
-                      </td>
-                      <td className="px-10 py-6">
-                        <span className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest border ${
-                          order.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100'
-                        }`}>
-                          {order.status || 'Traitement'}
-                        </span>
-                      </td>
-                      <td className="px-10 py-6 text-right font-[1000] text-slate-900 text-sm">
-                        {order.total_amount?.toLocaleString()} <span className="text-[9px] text-slate-400">CFA</span>
-                      </td>
-                      <td className="px-10 py-6 text-center">
-                        <button className="p-3 bg-slate-50 rounded-xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                       <td colSpan={4} className="py-20 text-center text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Aucune donnée en direct</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <span className="text-[8px] sm:text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">+12% mois</span>
           </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter mb-0.5">450k</h3>
+          <p className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest">CA Net (CFA)</p>
         </div>
 
-        {/* SECTION DROITE : ALERTES & CONTEXTE */}
-        <div className="space-y-10">
-          <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl shadow-slate-900/20 relative overflow-hidden group">
-            <div className="absolute -right-10 -top-10 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl group-hover:bg-orange-500/20 transition-all"></div>
-            
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3 mb-10 relative z-10">
-              <AlertCircle className="w-5 h-5 text-orange-500" /> Alertes Inventaire
-            </h3>
-            
-            <div className="space-y-8 relative z-10">
-              {stats.lowStockCount > 0 ? (
-                <div className="flex items-start gap-5">
-                  <div className="h-10 w-10 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
-                    <Box className="w-5 h-5 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-red-400 text-[10px] font-black uppercase tracking-widest mb-1">Rupture Critique</p>
-                    <p className="text-slate-300 text-[11px] font-bold leading-relaxed">
-                      Il reste moins de 5 unités pour <span className="text-white font-black">{stats.lowStockCount} produits</span>.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-5">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
-                    <PackageCheck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mb-1">Stock Sain</p>
-                    <p className="text-slate-300 text-[11px] font-bold leading-relaxed">Tous vos produits sont bien approvisionnés.</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-6 border-t border-white/5">
-                <div className="flex justify-between items-end mb-3">
-                   <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Performance Catalogue</p>
-                   <p className="text-orange-500 font-black text-xs">{stats.activeProducts}</p>
-                </div>
-                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                   <div className="h-full bg-orange-500 w-[75%] rounded-full shadow-[0_0_15px_rgba(249,115,22,0.5)]"></div>
-                </div>
-              </div>
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md group">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
+              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
+            <span className="text-[8px] sm:text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100">3 à traiter</span>
           </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter mb-0.5">14</h3>
+          <p className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest">Commandes</p>
+        </div>
 
-          <div className="bg-white rounded-[3rem] border border-slate-100 p-10 shadow-sm">
-             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 mb-8 flex items-center gap-3">
-                <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Satisfaction
-             </h3>
-             <div className="flex items-end gap-3 mb-8">
-                <p className="text-5xl font-[1000] text-slate-900 tracking-tighter">{stats.rating}</p>
-                <p className="text-slate-400 font-black text-[10px] uppercase mb-2">Sur 5.0</p>
-             </div>
-             <p className="text-[11px] text-slate-500 font-bold leading-relaxed">
-                Votre réactivité sur les commandes à Cocody et Marcory améliore votre visibilité.
-             </p>
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md group sm:col-span-2 lg:col-span-1">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Package className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <span className="text-[8px] sm:text-[9px] font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100">Bientôt plein</span>
           </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter mb-0.5">8 <span className="text-base sm:text-xl text-slate-300">/ 10</span></h3>
+          <p className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest">Capacité stock</p>
         </div>
       </div>
+
+      {/* COMMANDES RÉCENTES */}
+      <div className="bg-white rounded-2xl md:rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden w-full">
+        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h2 className="text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight">Dernières Commandes</h2>
+          </div>
+          <Link to="/vendor/orders" className="flex items-center gap-1 text-[8px] md:text-[9px] font-black text-blue-600 uppercase tracking-widest hover:text-slate-900 transition-colors bg-white px-3 py-1.5 md:py-2 rounded-lg border border-slate-200 shadow-sm">
+            Tout voir <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+        
+        {/* Le conteneur overflow-x-auto est crucial pour éviter que le tableau ne casse le design sur mobile */}
+        <div className="w-full overflow-x-auto p-0">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-[8px] md:text-[9px] uppercase tracking-[0.2em] text-slate-400">
+                <th className="p-4 font-black">N° Commande</th>
+                <th className="p-4 font-black">Client</th>
+                <th className="p-4 font-black">Montant Net</th>
+                <th className="p-4 font-black">Statut</th>
+                <th className="p-4 font-black text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {RECENT_ORDERS.map((order, i) => (
+                <tr key={i} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors group">
+                  <td className="p-4 font-black text-blue-600 text-[10px] md:text-xs">{order.id}</td>
+                  <td className="p-4 font-bold text-slate-900 text-[10px] md:text-xs">{order.client}</td>
+                  <td className="p-4 font-black text-slate-900 text-[10px] md:text-xs">{order.amount.toLocaleString()} <small className="text-slate-400 font-bold ml-1">CFA</small></td>
+                  <td className="p-4">
+                    <span className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border ${
+                      order.status === 'En attente' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                    }`}>
+                      {order.status}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <button className="text-[8px] md:text-[9px] font-black text-slate-500 bg-white border border-slate-200 px-3 py-1.5 md:py-2 rounded-lg group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all shadow-sm active:scale-95">
+                      Gérer
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
     </div>
   );
 }

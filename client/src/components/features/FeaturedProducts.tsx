@@ -1,28 +1,33 @@
-// src/components/features/FeaturedProducts.tsx
 import { useEffect, useState } from 'react';
 import ProductCard from './ProductCard';
-import { ArrowRight, Sparkles, TrendingUp, Loader2 } from 'lucide-react';
+import { ArrowRight, Sparkles, TrendingUp, Loader2, PackageOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { productService } from '../../services/productService';
-import type { Product } from '../../types'; // 🟢 Utilisation de "import type" pour éviter les erreurs Vite
+import type { Product } from '../../types';
 
 export default function FeaturedProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🟢 CHARGEMENT DES DONNÉES DEPUIS SUPABASE
   useEffect(() => {
     const loadFeatured = async () => {
       setIsLoading(true);
       try {
+        // On récupère les produits (ton service filtre déjà par status='approved')
         const data = await productService.getProducts();
-        // On filtre pour n'avoir que les produits "boosted" (A la une)
-        // et on en garde 4 pour le design
-        const featuredItems = data
-          .filter(p => p.is_boosted)
-          .slice(0, 4);
         
-        setProducts(featuredItems);
+        // --- LOGIQUE DE REMPLISSAGE DYNAMIQUE ---
+        // 1. On récupère les produits boostés
+        const boostedItems = data.filter(p => p.is_boosted);
+        
+        // 2. On définit ce qu'on affiche :
+        // Si on a des produits boostés, on les prend en priorité.
+        // Sinon, on prend simplement les 4 produits les plus récents du catalogue.
+        const itemsToDisplay = boostedItems.length > 0 
+          ? boostedItems.slice(0, 4) 
+          : data.slice(0, 4);
+        
+        setProducts(itemsToDisplay);
       } catch (error) {
         console.error("Erreur lors du chargement des produits à la une:", error);
       } finally {
@@ -54,8 +59,8 @@ export default function FeaturedProducts() {
             
             <div className="mt-3 md:mt-4 flex items-center gap-3">
                <div className="hidden sm:block h-1 w-12 bg-blue-600 rounded-full" />
-               <p className="text-slate-500 text-xs sm:text-sm md:text-lg font-medium">
-                 {isLoading ? "Recherche des meilleures offres..." : "Les meilleures offres certifiées SpaceAuto24"}
+               <p className="text-slate-500 text-xs sm:text-sm md:text-lg font-medium italic">
+                 {isLoading ? "Recherche des meilleures offres..." : "Les dernières pépites de nos vendeurs partenaires"}
                </p>
             </div>
           </div>
@@ -77,18 +82,23 @@ export default function FeaturedProducts() {
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-[2rem] border border-dashed border-slate-200">
-            <p className="text-slate-400 font-bold">Aucune pièce "Coup de cœur" pour le moment.</p>
+            <PackageOpen className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+              Le showroom est en cours de préparation.
+            </p>
           </div>
         ) : (
           /* --- GRILLE DE PRODUITS --- */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 animate-in fade-in duration-700">
             {products.map((product) => (
-              <div key={product.id} className="relative group">
+              <div key={product.id} className="relative group h-full">
+                 {/* 🟢 Le badge s'adapte : il affiche "Coup de cœur" uniquement si c'est vrai, sinon "Nouveau" */}
                  <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-white/90 backdrop-blur-md px-2.5 py-1 md:px-3 md:py-1 rounded-full border border-white shadow-sm flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    <Sparkles className="w-3 h-3 text-orange-500" />
-                    <span className="text-[9px] md:text-[10px] font-black text-slate-900 uppercase tracking-tighter">Coup de cœur</span>
+                    <Sparkles className={`w-3 h-3 ${product.is_boosted ? 'text-orange-500' : 'text-blue-500'}`} />
+                    <span className="text-[9px] md:text-[10px] font-black text-slate-900 uppercase tracking-tighter">
+                      {product.is_boosted ? "Coup de cœur" : "Nouveau"}
+                    </span>
                  </div>
-                 
                  <ProductCard product={product} />
               </div>
             ))}
@@ -99,7 +109,7 @@ export default function FeaturedProducts() {
         <div className="mt-8 md:hidden bg-blue-600 p-6 rounded-[2rem] text-center text-white shadow-lg">
            <p className="font-bold text-sm mb-4 leading-snug">Livraison rapide sur tout Abidjan en 24h/48h</p>
            <Link to="/catalog" className="inline-block w-full bg-white text-blue-600 px-6 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-md">
-             Explorer les pièces
+              Explorer les pièces
            </Link>
         </div>
 

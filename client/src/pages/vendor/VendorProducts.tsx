@@ -1,48 +1,84 @@
-import { useState } from 'react';
-import VendorSidebar from './VendorSidebar';
-import { PlusCircle, X, UploadCloud, Zap, Package } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { PlusCircle, X, UploadCloud, Zap, Package, Loader2, AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
+import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function VendorProducts() {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+  
+  // --- ÉTATS ---
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
+  // --- ÉTATS FREEMIUM ---
+  const [userPlan, setUserPlan] = useState('free');
+  const [productCount, setProductCount] = useState(0);
+  const MAX_FREE_PRODUCTS = 10;
+
   // État du formulaire
   const [newProduct, setNewProduct] = useState({
     name: '',
     price: '',
     stock: '',
     category: 'Mécanique',
-    image: '', // URL finale Cloudinary
-    previewUrl: '' // URL locale temporaire pour l'aperçu immédiat
+    brand: 'Générique', // Requis par la BDD
+    image: '', 
+    previewUrl: '' 
   });
 
-  // Données de test
-  const [products, setProducts] = useState([
-    { 
-      id: 1, 
-      name: "Plaquettes Brembo X", 
-      price: "45,000 CFA", 
-      stock: 12, 
-      category: "Freinage",
-      image: "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400"
-    }
-  ]);
+  // --- INITIALISATION (Récupération des données) ---
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return;
+      try {
+        // 1. Récupérer le plan du vendeur
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_plan')
+          .eq('id', user.id)
+          .single();
+        if (profile) setUserPlan(profile.subscription_plan || 'free');
 
-  // --- LOGIQUE D'UPLOAD ET D'APERÇU ---
+        // 2. Récupérer SES produits
+        const { data: vendorProducts, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('vendor_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setProducts(vendorProducts || []);
+        setProductCount(vendorProducts?.length || 0);
+
+      } catch (err) {
+        console.error("Erreur de chargement:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  // --- LOGIQUE CLOUDINARY ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. GÉNERER L'APERÇU IMMÉDIAT (Local)
-    // createObjectURL crée une URL temporaire pointant vers le fichier sur ton PC
     const localPreview = URL.createObjectURL(file);
     setNewProduct(prev => ({ ...prev, previewUrl: localPreview }));
 
-    // 2. ENVOYER VERS CLOUDINARY (Arrière-plan)
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'votre_preset_unsigned');
+    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'spaceauto_preset');
+    formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'votre_cloud_name');
 
     try {
       const response = await fetch(
@@ -53,111 +89,168 @@ export default function VendorProducts() {
       if (!response.ok) throw new Error("Échec de l'upload");
 
       const data = await response.json();
-      // 3. MISE À JOUR AVEC L'URL FINALE
       setNewProduct(prev => ({ ...prev, image: data.secure_url }));
     } catch (error) {
       console.error("Erreur Cloudinary:", error);
-      // Optionnel : remettre l'aperçu à zéro si l'upload échoue vraiment
+      toast.error("Erreur lors du téléchargement de l'image");
     } finally {
       setUploading(false);
     }
   };
 
-  const handleAddProduct = () => {
-    if (!newProduct.name || (!newProduct.image && !newProduct.previewUrl)) return;
+  // --- SAUVEGARDE DANS SUPABASE ---
+  const handleAddProduct = async () => {
+    if (!newProduct.name || !newProduct.price || (!newProduct.image && !newProduct.previewUrl)) {
+      toast.error("Veuillez remplir les champs obligatoires et ajouter une image.");
+      return;
+    }
     
-    const productToAdd = {
-      id: Date.now(),
-      ...newProduct,
-      price: `${newProduct.price} CFA`,
-      stock: parseInt(newProduct.stock) || 0,
-      image: newProduct.image || newProduct.previewUrl // Fallback sur l'aperçu si Cloudinary pas configuré
-    };
+    if (!user) return;
+    setIsSaving(true);
 
-    setProducts([productToAdd, ...products]);
-    setIsModalOpen(false);
-    // Reset complet du formulaire
-    setNewProduct({ name: '', price: '', stock: '', category: 'Mécanique', image: '', previewUrl: '' });
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{
+          vendor_id: user.id,
+          name: newProduct.name,
+          brand: newProduct.brand,
+          category: newProduct.category,
+          price: parseFloat(newProduct.price),
+          stock: parseInt(newProduct.stock) || 1,
+          images: [newProduct.image || newProduct.previewUrl], // Format Array pour notre BDD
+          status: 'active'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Mise à jour locale
+      setProducts([data, ...products]);
+      setProductCount(prev => prev + 1);
+      setIsModalOpen(false);
+      setNewProduct({ name: '', price: '', stock: '', category: 'Mécanique', brand: 'Générique', image: '', previewUrl: '' });
+      toast.success("Pièce ajoutée avec succès !");
+
+    } catch (error) {
+      console.error("Erreur ajout:", error);
+      toast.error("Erreur lors de la création de l'article.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // --- GESTION DU CLIC SUR AJOUTER ---
+  const handleOpenModal = () => {
+    if (userPlan === 'free' && productCount >= MAX_FREE_PRODUCTS) {
+      toast.error("Limite de 10 produits atteinte. Passez au plan Pro !");
+      navigate('/vendor/settings');
+      return;
+    }
+    setIsModalOpen(true);
   };
 
   return (
-    <div className="flex bg-[#F8FAFC] min-h-screen font-sans">
-      <VendorSidebar />
+    // PLUS BESOIN de "flex min-h-screen ml-72", VendorLayout s'en charge !
+    <div className="space-y-6 md:space-y-8 w-full max-w-7xl mx-auto pb-10">
       
-      <main className="flex-1 lg:ml-72 p-8 pt-28">
-        {/* HEADER */}
-        <div className="flex justify-between items-center mb-12 animate-in fade-in duration-700">
-          <h1 className="text-3xl font-[1000] uppercase text-slate-900 tracking-tighter">Catalogue <span className="text-slate-400">Pièces</span></h1>
-          <button onClick={() => setIsModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-orange-500 transition-all duration-300 shadow-xl shadow-slate-900/10">
-            <PlusCircle className="w-5 h-5" /> Ajouter au stock
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in duration-700 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-[1000] uppercase text-slate-900 tracking-tighter">
+            Catalogue <span className="text-blue-600">Pièces</span>
+          </h1>
+          {userPlan === 'free' && (
+             <div className="flex items-center gap-2 mt-1">
+               <span className={`text-[10px] font-black uppercase tracking-widest ${productCount >= MAX_FREE_PRODUCTS ? 'text-red-500' : 'text-slate-400'}`}>
+                 {productCount} / {MAX_FREE_PRODUCTS} produits (Plan Gratuit)
+               </span>
+             </div>
+          )}
+        </div>
+        <button 
+          onClick={handleOpenModal} 
+          className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 md:py-4 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-blue-600 transition-all duration-300 shadow-lg shadow-slate-900/10 active:scale-95"
+        >
+          <PlusCircle className="w-5 h-5" /> Ajouter au stock
+        </button>
+      </div>
+
+      {/* GRILLE DES PRODUITS */}
+      {loading ? (
+        <div className="py-20 flex justify-center">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+        </div>
+      ) : products.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-[2rem] border border-slate-100 shadow-sm">
+          <Package className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+          <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Catalogue vide</h3>
+          <p className="text-xs font-bold text-slate-400 mt-1 mb-6">Commencez à ajouter vos pièces pour générer des ventes.</p>
+          <button onClick={handleOpenModal} className="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-colors">
+            Ajouter ma première pièce
           </button>
         </div>
-
-        {/* GRILLE */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.map((p) => (
-            <div key={p.id} className="bg-white rounded-[2.5rem] border border-slate-100 p-6 hover:shadow-xl transition-all duration-500 relative overflow-hidden group">
-              <div className="relative h-48 w-full rounded-[2rem] overflow-hidden mb-6 bg-slate-50">
-                <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                <div className={`absolute top-4 left-4 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest backdrop-blur-sm border ${p.stock < 5 ? 'bg-orange-500/10 text-orange-600 border-orange-200' : 'bg-white/80 text-slate-900 border-white/20'}`}>
+            <div key={p.id} className="bg-white rounded-[2rem] border border-slate-100 p-4 sm:p-5 hover:shadow-xl transition-all duration-500 relative overflow-hidden group">
+              <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden mb-4 bg-slate-50 border border-slate-100">
+                <img src={p.images?.[0] || 'https://via.placeholder.com/400?text=Sans+Image'} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest backdrop-blur-md border shadow-sm ${p.stock < 5 ? 'bg-red-500/90 text-white border-red-400' : 'bg-white/90 text-slate-900 border-white'}`}>
                   {p.stock} en stock
                 </div>
               </div>
-              <h3 className="text-sm font-[1000] uppercase text-slate-900 tracking-tight leading-tight group-hover:text-orange-500 transition-colors">{p.name}</h3>
-              <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-50">
-                <p className="text-lg font-[1000] text-slate-900">{p.price}</p>
-                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-colors"><Package className="w-5 h-5"/></div>
+              <h3 className="text-xs sm:text-sm font-[1000] uppercase text-slate-900 tracking-tight leading-tight group-hover:text-blue-600 transition-colors line-clamp-2 min-h-[2.5rem]">{p.name}</h3>
+              <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-50">
+                <p className="text-base sm:text-lg font-[1000] text-slate-900 tracking-tighter">{p.price.toLocaleString()} <span className="text-[10px] text-slate-400">CFA</span></p>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-colors"><Package className="w-4 h-4"/></div>
               </div>
             </div>
           ))}
         </div>
-      </main>
+      )}
 
-      {/* MODAL ÉLÉGANT AVEC APERÇU GARANTI */}
+      {/* MODAL D'AJOUT */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-2xl rounded-[3.5rem] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="h-2 w-full bg-gradient-to-r from-orange-500 via-amber-400 to-orange-600"></div>
-            <div className="p-12">
-              <div className="flex justify-between items-start mb-10">
-                <h2 className="text-2xl font-[1000] uppercase text-slate-900 tracking-tighter">Nouvelle <span className="text-orange-500">Référence</span></h2>
-                <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 rounded-2xl text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors"><X className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-[2rem] sm:rounded-[3rem] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 my-auto">
+            <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-emerald-400 to-orange-500"></div>
+            <div className="p-6 sm:p-10">
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-[1000] uppercase text-slate-900 tracking-tighter">Nouvelle <span className="text-blue-600">Pièce</span></h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ajout rapide au catalogue</p>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-3 bg-slate-50 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"><X className="w-5 h-5" /></button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                {/* ZONE D'APERÇU DE L'IMAGE (CORRIGÉE) */}
-                <div className="relative aspect-square border-2 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center overflow-hidden bg-slate-50 group hover:border-orange-500 hover:bg-orange-50/30 transition-all duration-500">
-                  
-                  {/* Si previewUrl existe, on affiche l'aperçu instantané */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+                {/* ZONE D'APERÇU DE L'IMAGE */}
+                <div className="relative aspect-square border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center overflow-hidden bg-slate-50 group hover:border-blue-500 hover:bg-blue-50/30 transition-all duration-300">
                   {newProduct.previewUrl ? (
                     <>
-                      <img 
-                        src={newProduct.previewUrl} 
-                        className={`w-full h-full object-cover transition-all duration-500 ${uploading ? 'blur-sm opacity-50' : ''}`} 
-                        alt="Aperçu de la pièce" 
-                      />
+                      <img src={newProduct.previewUrl} className={`w-full h-full object-cover transition-all duration-500 ${uploading ? 'blur-sm opacity-50' : ''}`} alt="Aperçu de la pièce" />
                       {uploading && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                         </div>
                       )}
-                      {/* Bouton pour changer l'image si l'aperçu ne convient pas */}
                       {!uploading && (
                         <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white cursor-pointer transition-opacity">
                             <UploadCloud className="w-8 h-8 mb-2" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Changer la photo</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Modifier l'image</span>
                             <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
                         </label>
                       )}
                     </>
                   ) : (
-                    // État initial : Pas d'image sélectionnée
-                    <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer group p-8 text-center">
-                      <div className="w-16 h-16 bg-white rounded-3xl shadow-sm flex items-center justify-center mb-4 mx-auto group-hover:scale-110 group-hover:shadow-orange-500/10 transition-all duration-500">
-                        <UploadCloud className="text-slate-400 group-hover:text-orange-500 w-6 h-6" />
+                    <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-6 text-center">
+                      <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 group-hover:shadow-blue-500/20 transition-all duration-300">
+                        <UploadCloud className="text-slate-400 group-hover:text-blue-600 w-6 h-6" />
                       </div>
-                      <p className="text-[10px] font-[1000] uppercase tracking-[0.2em] text-slate-400 group-hover:text-orange-500 leading-relaxed">
-                        Glisser ou sélectionner la photo de la pièce
+                      <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 group-hover:text-blue-600 leading-relaxed">
+                        Photo principale<br/><span className="text-[8px] font-bold text-slate-300">(Requis)</span>
                       </p>
                       <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
                     </label>
@@ -165,22 +258,33 @@ export default function VendorProducts() {
                 </div>
 
                 {/* FORMULAIRE */}
-                <div className="space-y-6">
-                  <input type="text" placeholder="DÉSIGNATION (EX: KIT EMBRAYAGE LUK)" className="w-full p-5 bg-slate-50 rounded-2xl text-[10px] font-black outline-none border-2 border-transparent focus:border-orange-500 transition-all uppercase tracking-widest" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <input type="number" placeholder="PRIX (CFA)" className="p-5 bg-slate-50 rounded-2xl text-[10px] font-black outline-none border-2 border-transparent focus:border-orange-500 transition-all" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                    <input type="number" placeholder="STOCK" className="p-5 bg-slate-50 rounded-2xl text-[10px] font-black outline-none border-2 border-transparent focus:border-orange-500 transition-all" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Désignation</label>
+                    <input type="text" placeholder="Ex: Kit Embrayage LUK" className="w-full p-4 bg-slate-50 rounded-xl text-xs font-bold text-slate-900 outline-none border border-slate-200 focus:border-blue-500 focus:bg-white transition-all uppercase placeholder:text-slate-300" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
                   </div>
-                  <button 
-                    onClick={handleAddProduct}
-                    disabled={uploading || !newProduct.name || (!newProduct.image && !newProduct.previewUrl)}
-                    className="w-full group relative overflow-hidden bg-slate-900 text-white py-6 rounded-[1.8rem] font-[1000] uppercase tracking-[0.25em] text-[10px] hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300"
-                  >
-                    <span className="relative z-10 flex items-center justify-center gap-3">
-                       {uploading ? 'Envoi en cours...' : 'Confirmer l\'ajout'} <Zap className="w-4 h-4 text-orange-500 fill-orange-500" />
-                    </span>
-                    <div className="absolute inset-0 bg-orange-500 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-500"></div>
-                  </button>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Prix (CFA)</label>
+                      <input type="number" placeholder="0" className="w-full p-4 bg-slate-50 rounded-xl text-xs font-black text-blue-600 outline-none border border-slate-200 focus:border-blue-500 focus:bg-white transition-all placeholder:text-slate-300" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Stock dispo</label>
+                      <input type="number" placeholder="1" className="w-full p-4 bg-slate-50 rounded-xl text-xs font-black text-slate-900 outline-none border border-slate-200 focus:border-blue-500 focus:bg-white transition-all placeholder:text-slate-300" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button 
+                      onClick={handleAddProduct}
+                      disabled={uploading || isSaving || !newProduct.name || !newProduct.price || (!newProduct.image && !newProduct.previewUrl)}
+                      className="w-full bg-slate-900 text-white py-5 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-blue-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3"
+                    >
+                      {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmer l'ajout <Zap className="w-4 h-4 fill-white" /></>}
+                    </button>
+                    <p className="text-[8px] font-bold text-center text-slate-400 uppercase tracking-widest mt-3">La pièce sera visible immédiatement.</p>
+                  </div>
                 </div>
               </div>
             </div>

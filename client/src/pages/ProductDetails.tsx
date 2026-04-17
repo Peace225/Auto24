@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   ShoppingCart, ShieldCheck, MessageCircle, ArrowLeft, Loader2, 
-  Info, CheckCircle2, CreditCard, Banknote, Droplets, Gauge 
+  Info, CheckCircle2, CreditCard, Banknote, Droplets, Gauge, Home 
 } from 'lucide-react';
 import { productService } from '../services/productService';
 import { useCartStore } from '../store/useCartStore';
 import type { Product } from '../types';
-
-// 🟢 DÉTECTEUR D'IMAGES GLOBAL (Assets, Oils, Logos)
-const allImages = import.meta.glob('../assets/**/*.{png,jpg,jpeg,svg,webp}', { 
-  eager: true, 
-  import: 'default'
-}) as Record<string, string>;
 
 export default function ProductDetails() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +15,9 @@ export default function ProductDetails() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Image de secours
+  const fallbackImage = "https://placehold.co/600x400/f8fafc/94a3b8?text=Image+Indisponible";
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -38,197 +35,192 @@ export default function ProductDetails() {
     fetchProduct();
   }, [id]);
 
-  // Trouve l'image en cherchant le nom du fichier dans tous les dossiers assets
-  const getImageUrl = (filename: string | undefined) => {
-    if (!filename) return 'https://placehold.co/600x400?text=Image+Indisponible';
-    const cleanName = filename.toLowerCase().split('/').pop()?.split('.')[0];
-    const imagePath = Object.keys(allImages).find(path => 
-      path.toLowerCase().includes(cleanName || "___none___")
-    );
-    return imagePath ? allImages[imagePath] : 'https://placehold.co/600x400?text=Image+Indisponible';
-  };
-
-  // Pour les logos de paiement
-  const getLogoUrl = (keyword: string) => {
-    const path = Object.keys(allImages).find(p => p.toLowerCase().includes(keyword.toLowerCase()));
-    return path ? allImages[path] : null;
-  };
-
   if (isLoading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-        <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Chargement des données...</p>
+      <div className="min-h-[70vh] flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Chargement de la pièce...</p>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <Info className="w-16 h-16 text-slate-200 mx-auto mb-6" />
-        <h2 className="text-2xl font-black text-slate-900 uppercase">Produit introuvable</h2>
-        <button onClick={() => navigate(-1)} className="mt-6 text-blue-600 font-bold flex items-center justify-center gap-2 mx-auto">
-          <ArrowLeft className="w-4 h-4" /> Retour
-        </button>
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center min-h-[70vh] flex flex-col items-center justify-center">
+        <Info className="w-16 h-16 text-slate-300 mx-auto mb-6" />
+        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Produit introuvable</h2>
+        <Link to="/" className="mt-8 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-[11px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-md flex items-center justify-center gap-2">
+          <Home className="w-4 h-4" /> Retour à l'accueil
+        </Link>
       </div>
     );
   }
 
-  const whatsappUrl = `https://wa.me/2250102030405?text=${encodeURIComponent(`Bonjour, je souhaite commander : ${product.name} (${product.price} FCFA)`)}`;
+  // ⚠️ N'oublie pas de mettre ton vrai numéro WhatsApp ici
+  const whatsappUrl = `https://wa.me/22500000000?text=${encodeURIComponent(`Bonjour, je souhaite commander : ${product.name} (${product.price} FCFA)`)}`; 
+  
+  const initialImageUrl = product.image_url || fallbackImage;
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.onerror = null; 
+    e.currentTarget.src = fallbackImage;
+  };
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-20">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="bg-slate-50 min-h-screen pb-24 pt-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
-        <button onClick={() => navigate(-1)} className="mb-8 flex items-center gap-2 text-slate-400 hover:text-blue-600 font-black text-[10px] uppercase tracking-widest transition-colors w-fit">
-          <ArrowLeft className="w-4 h-4" /> Retour au catalogue
-        </button>
+        {/* 🟢 BARRE DE NAVIGATION (Retour & Accueil) */}
+        <div className="flex items-center gap-3 mb-8">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md">
+            <ArrowLeft className="w-4 h-4" /> Retour
+          </button>
+          <Link to="/" className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md">
+            <Home className="w-4 h-4" /> Accueil
+          </Link>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
-          {/* --- BLOC IMAGE --- */}
-          <div className="bg-white p-8 md:p-12 rounded-[2.5rem] shadow-xl border border-slate-100 flex items-center justify-center relative overflow-hidden">
-            <img 
-              src={getImageUrl(product.image_url)} 
-              alt={product.name} 
-              className="max-h-[500px] w-full object-contain hover:scale-105 transition-transform duration-700" 
-            />
-            {product.viscosity && (
-              <div className="absolute top-6 left-6 bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg">
-                <Droplets className="w-4 h-4" />
-                <span className="text-[11px] font-black uppercase tracking-widest">{product.viscosity}</span>
-              </div>
-            )}
-          </div>
-
-          {/* --- BLOC INFOS --- */}
-          <div className="flex flex-col">
-            <div className="mb-4 flex items-center flex-wrap gap-3">
-              <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 border border-blue-100">
-                {product.brand}
-              </span>
-              {product.in_stock && (
-                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" /> Produit Disponible
-                </span>
+          {/* --- BLOC IMAGE PREMIUM --- */}
+          <div className="lg:col-span-6 xl:col-span-7">
+            <div className="bg-white p-8 md:p-14 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-center relative overflow-hidden group h-full min-h-[400px]">
+              {/* Fond très léger pour le contraste */}
+              <div className="absolute inset-0 bg-slate-50/50 group-hover:bg-transparent transition-colors duration-500"></div>
+              
+              <img 
+                src={initialImageUrl as string} 
+                alt={product.name} 
+                onError={handleImageError}
+                className="relative z-10 max-h-[400px] md:max-h-[500px] w-full object-contain mix-blend-darken drop-shadow-2xl hover:scale-105 transition-transform duration-700" 
+              />
+              
+              {product.viscosity && (
+                <div className="absolute top-6 left-6 z-20 bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg">
+                  <Droplets className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">{product.viscosity}</span>
+                </div>
               )}
             </div>
+          </div>
 
-            <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight mb-4 uppercase">
+          {/* --- BLOC INFOS & ACHAT --- */}
+          <div className="lg:col-span-6 xl:col-span-5 flex flex-col justify-center">
+            <div className="mb-6 flex items-center flex-wrap gap-3">
+              <span className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-900 text-white shadow-sm">
+                {product.brand}
+              </span>
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100">
+                <CheckCircle2 className="w-4 h-4" /> En Stock
+              </span>
+            </div>
+
+            <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-tight mb-6 uppercase">
               {product.name}
             </h1>
             
-            <div className="mb-8">
-               <p className="text-5xl font-black text-slate-900 tracking-tighter">
-                 {product.price.toLocaleString()} <span className="text-lg">FCFA</span>
+            <div className="mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm inline-block w-fit">
+               <p className="text-4xl md:text-5xl font-black text-blue-600 tracking-tighter flex items-baseline gap-2">
+                 {product.price.toLocaleString()} <span className="text-base text-slate-400">FCFA</span>
                </p>
             </div>
 
-            {/* --- GRILLE TECHNIQUE (HUILES / PNEUS) --- */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {product.viscosity && (
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className="bg-blue-50 p-2 rounded-lg"><Gauge className="w-5 h-5 text-blue-600" /></div>
+            {/* --- GRILLE TECHNIQUE (Ex: Viscosité) --- */}
+            {product.viscosity && (
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                  <div className="bg-slate-50 p-3 rounded-lg"><Gauge className="w-5 h-5 text-blue-600" /></div>
                   <div>
-                    <p className="text-[8px] font-black text-slate-400 uppercase">Viscosité</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Viscosité</p>
                     <p className="text-sm font-black text-slate-900 uppercase">{product.viscosity}</p>
                   </div>
                 </div>
-              )}
-              {product.capacity && (
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className="bg-blue-50 p-2 rounded-lg"><Droplets className="w-5 h-5 text-blue-600" /></div>
-                  <div>
-                    <p className="text-[8px] font-black text-slate-400 uppercase">Contenance</p>
-                    <p className="text-sm font-black text-slate-900 uppercase">{product.capacity} Litres</p>
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-8">
+            {/* --- BOUTONS D'ACTION --- */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-10">
               <button 
-                onClick={() => addToCart(product)}
-                disabled={!product.in_stock}
-                className="flex-3 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 bg-slate-900 text-white hover:bg-blue-600 shadow-xl transition-all active:scale-95"
+                onClick={() => {
+                  addToCart(product);
+                  navigate('/checkout');
+                }}
+                className="flex-grow py-5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-blue-600/20 transition-all active:scale-95 bg-blue-600 text-white hover:bg-slate-900"
               >
-                <ShoppingCart className="w-5 h-5" /> Ajouter au panier
+                <ShoppingCart className="w-5 h-5" /> Acheter Maintenant
               </button>
               
-              <a href={whatsappUrl} target="_blank" className="flex-1 bg-emerald-50 text-emerald-600 border-2 border-emerald-100 py-5 rounded-2xl font-black text-[11px] uppercase flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all">
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="sm:w-1/3 bg-white text-emerald-600 border-2 border-emerald-100 py-5 rounded-xl font-black text-[11px] uppercase flex items-center justify-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm">
                 <MessageCircle className="w-5 h-5" /> WhatsApp
               </a>
             </div>
 
-            {/* PAIEMENT SECURISE */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm mb-6">
-              <h4 className="font-black text-slate-900 uppercase tracking-widest text-[9px] mb-5 flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-blue-600" /> Paiement sécurisé CI
-              </h4>
-              <div className="flex gap-4">
-                {['wave', 'orange', 'moov', 'mtn'].map((operator) => (
-                  <div key={operator} className="h-10 w-14 bg-slate-50 rounded-lg border border-slate-100 p-2 flex items-center justify-center">
-                    <img src={getLogoUrl(operator) || ''} alt={operator} className="max-h-full object-contain grayscale hover:grayscale-0 transition-all" />
+            {/* --- REASSURANCE (Paiement & Garantie) --- */}
+            <div className="space-y-4">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h4 className="font-black text-slate-900 uppercase tracking-widest text-[9px] mb-4 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-blue-600" /> Moyens de paiement acceptés
+                </h4>
+                <div className="flex gap-3">
+                  {['Wave', 'Orange', 'Moov', 'MTN'].map((operator) => (
+                    <div key={operator} className="h-10 px-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-center">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{operator}</span>
+                    </div>
+                  ))}
+                  <div className="h-10 w-12 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-sm title='Paiement à la livraison'">
+                    <Banknote className="w-4 h-4" />
                   </div>
-                ))}
-                <div className="h-10 w-14 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center justify-center text-emerald-600">
-                  <Banknote className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="bg-slate-900 p-6 rounded-2xl flex items-center gap-4 text-white shadow-xl">
+                <div className="bg-white/10 p-3 rounded-xl shrink-0">
+                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h4 className="font-black uppercase tracking-widest text-[10px] mb-1">Garantie Authenticité</h4>
+                  <p className="text-[11px] font-medium text-slate-300 leading-relaxed">Produit 100% original. Qualité vérifiée par nos experts.</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-blue-600 p-5 rounded-[2rem] flex items-start gap-4 text-white shadow-lg shadow-blue-200">
-              <ShieldCheck className="w-6 h-6 flex-shrink-0" />
-              <div>
-                <h4 className="font-black uppercase tracking-widest text-[9px] mb-1">Garantie Authenticité</h4>
-                <p className="text-[10px] font-bold opacity-80 leading-relaxed">Produit 100% original. Nos experts vérifient chaque bidon/pneu avant livraison.</p>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* --- DESCRIPTION --- */}
-        <div className="mt-16">
-          <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter border-b-4 border-blue-600 pb-2 w-fit mb-8">Informations Techniques</h3>
+        {/* --- DESCRIPTION DÉTAILLÉE --- */}
+        <div className="mt-16 border-t border-slate-200 pt-16">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
+              <Info className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Fiche Technique</h3>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-             <div className="md:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <p className="text-slate-600 text-sm leading-relaxed mb-8">
-                  {product.description || "Détails techniques en cours de rédaction."}
+             <div className="md:col-span-2 bg-white p-8 md:p-12 rounded-3xl border border-slate-200 shadow-sm">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 border-b border-slate-100 pb-4">Description du produit</h4>
+                <p className="text-slate-600 text-sm md:text-base leading-relaxed font-medium">
+                  {product.description || "Les détails techniques complets de cette pièce sont actuellement en cours de rédaction par notre équipe d'experts."}
                 </p>
-                
-                <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-50">
-                  {product.spec && (
-                    <div>
-                      <span className="text-slate-400 block text-[8px] uppercase font-black mb-1">Normes & Specs</span>
-                      <span className="text-slate-900 font-black text-xs uppercase bg-slate-50 px-3 py-1 rounded-lg">{product.spec}</span>
-                    </div>
-                  )}
-                  {product.oem_reference && (
-                    <div>
-                      <span className="text-slate-400 block text-[8px] uppercase font-black mb-1">Référence</span>
-                      <span className="text-slate-900 font-black text-xs uppercase">{product.oem_reference}</span>
-                    </div>
-                  )}
-                </div>
              </div>
 
-             <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white h-fit shadow-2xl">
-               <h3 className="text-[10px] font-black uppercase tracking-widest mb-6 text-blue-400">Recommandé pour</h3>
+             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 h-fit">
+               <h3 className="text-[10px] font-black uppercase tracking-widest mb-6 text-slate-400 border-b border-slate-100 pb-4">Points Forts</h3>
                <ul className="space-y-4">
-                 <li className="flex items-center gap-3 text-[11px] font-black uppercase">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Essence & Diesel
+                 <li className="flex items-start gap-3 text-[11px] font-bold text-slate-700 uppercase">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" /> Compatibilité universelle
                  </li>
-                 <li className="flex items-center gap-3 text-[11px] font-black uppercase">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Haute Protection
+                 <li className="flex items-start gap-3 text-[11px] font-bold text-slate-700 uppercase">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" /> Haute durabilité
                  </li>
-                 <li className="flex items-center gap-3 text-[11px] font-black uppercase opacity-60">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Économie Carburant
+                 <li className="flex items-start gap-3 text-[11px] font-bold text-slate-700 uppercase">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" /> Installation simplifiée
                  </li>
                </ul>
              </div>
           </div>
         </div>
+
       </div>
     </div>
   );

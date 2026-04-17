@@ -19,6 +19,12 @@ import SearchPage from './pages/SearchPage';
 import Checkout from './pages/Checkout';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 
+// 🔴 CORRECTION DES IMPORTS VENDEUR (Noms clarifiés)
+// On renomme le fichier à la racine en "BecomeVendorPage" car c'est le formulaire de candidature
+import BecomeVendorPage from './pages/VendorDashboard'; 
+// On garde "VendorDashboard" pour la console réelle du vendeur
+import VendorDashboard from './pages/vendor/VendorDashboard'; 
+
 // Pages Thématiques
 import MotorOil from './pages/MotorOil';
 import Tools from './pages/Tools';
@@ -26,8 +32,10 @@ import Tires from './pages/Tires';
 import Accessories from './pages/Accessories'; 
 import Garages from './pages/Garages'; 
 
-// --- PAGES VENDEUR ---
-import VendorDashboardPage from './pages/VendorDashboard'; // 👈 Ta page de candidature (le formulaire)
+// Import du bouton
+import WhatsAppFloatingBtn from './components/layout/WhatsAppFloatingBtn';
+
+// --- AUTRES PAGES VENDEUR ---
 import AddProduct from './pages/vendor/AddProduct';
 import VendorOrders from './pages/vendor/VendorOrders';
 import VendorProducts from './pages/vendor/VendorProducts';
@@ -62,8 +70,8 @@ function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
 
-          {/* PAGE POUR DEVENIR VENDEUR (Candidature) */}
-          <Route path="/become-vendor" element={<VendorDashboardPage />} /> 
+          {/* 🟢 LA BONNE PAGE ICI : Le formulaire de candidature */}
+          <Route path="/become-vendor" element={<BecomeVendorPage />} /> 
 
           {/* ADMINISTRATION */}
           <Route path="/admin">
@@ -71,11 +79,13 @@ function App() {
             <Route path="transactions" element={<AdminTransactions />} />
           </Route>
 
-          {/* ESPACE DE GESTION VENDEUR (Une fois accepté) */}
+          {/* ESPACE DE GESTION VENDEUR (Privé) */}
           <Route path="/vendor" element={<VendorLayout />}>
             <Route element={<VendorGuard />}>
-              <Route index element={<VendorDashboardPage />} /> 
-              <Route path="dashboard" element={<VendorDashboardPage />} />
+              {/* 🟢 LA BONNE PAGE ICI : Les statistiques et les abonnements */}
+              <Route index element={<VendorDashboard />} /> 
+              <Route path="dashboard" element={<VendorDashboard />} />
+              
               <Route path="add-product" element={<AddProduct />} />
               <Route path="orders" element={<VendorOrders />} />
               <Route path="products" element={<VendorProducts />} />
@@ -90,6 +100,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
       </Routes>
+
+      <WhatsAppFloatingBtn />
     </Router>
   );
 }

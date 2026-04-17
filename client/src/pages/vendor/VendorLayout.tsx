@@ -4,19 +4,20 @@ import VendorSidebar from './VendorSidebar';
 export default function VendorLayout() {
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      <div className="flex">
-        {/* SIDEBAR : On s'assure qu'elle commence sous la Navbar (top-[height]) */}
-        {/* Ajuste top-[160px] selon la hauteur totale Navbar + SubHeader */}
-        <div className="hidden lg:block fixed left-0 top-[160px] bottom-0 w-72 border-r border-slate-200 bg-white z-40">
-          <VendorSidebar />
-        </div>
-
+      <div className="flex w-full">
+        
         {/* CONTENU PRINCIPAL */}
-        <main className="flex-1 lg:ml-72 px-4 md:px-8 pb-20">
-          <div className="max-w-7xl mx-auto pt-8">
+        {/* Le pb-28 (Padding Bottom) empêche le contenu de se cacher sous la barre mobile */}
+        <main className="flex-1 min-w-0 w-full overflow-x-hidden lg:ml-72 px-4 md:px-8 pt-8 pb-28">
+          <div className="max-w-7xl mx-auto">
             <Outlet /> 
           </div>
         </main>
+
+        {/* LA SIDEBAR / BARRE MOBILE EST PLACÉE TOUT EN BAS */}
+        {/* L'ordre du DOM garantit qu'elle s'affiche au-dessus du contenu */}
+        <VendorSidebar />
+        
       </div>
     </div>
   );
