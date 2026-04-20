@@ -6,7 +6,9 @@ import {
   CreditCard, 
   Gavel, 
   LogOut,
-  PlusCircle // 🟢 Ajout de l'icône pour le bouton de création
+  PlusCircle,
+  PackagePlus,
+  Settings // 🟢 Ajout de l'icône Paramètres
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -21,15 +23,16 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
   const { setUser } = useAuthStore();
 
   // --- CONFIGURATION DU POSITIONNEMENT ---
-  // Calage précis sous le SubHeader (70px)
   const totalOffset = 70; 
 
+  // 🟢 NOUVEAU : J'ai ajouté 'Paramètres' à la fin de la liste
   const menuItems = [
     { id: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'sellers', icon: Users, label: 'Vendeurs' },
     { id: 'products', icon: PackageSearch, label: 'Validation Articles' },
     { id: 'payments', icon: CreditCard, label: 'Transactions' },
     { id: 'disputes', icon: Gavel, label: 'Litiges' },
+    { id: 'settings', icon: Settings, label: 'Paramètres' }, 
   ];
 
   const handleLogout = async () => {
@@ -55,21 +58,41 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
         </p>
       </div>
 
-      {/* 🟢 BOUTON D'ACTION PRINCIPAL : CRÉER BOUTIQUE */}
-      <div className="px-4 -mt-2">
+      {/* BOUTONS D'ACTION RAPIDE (CRÉATION) */}
+      <div className="px-2 -mt-2 space-y-3">
+        {/* Bouton Créer Boutique */}
         <button 
           onClick={() => setActiveTab('create-store')}
-          className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white transition-all group shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)] active:scale-95"
+          className={`w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl transition-all group active:scale-95 ${
+            activeTab === 'create-store' 
+              ? 'bg-blue-500 text-white shadow-[0_0_30px_rgba(59,130,246,0.5)]' 
+              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]'
+          }`}
         >
           <PlusCircle className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
           <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
             Créer Boutique
           </span>
         </button>
+
+        {/* Bouton Ajouter Produit */}
+        <button 
+          onClick={() => setActiveTab('add-product')}
+          className={`w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl transition-all group active:scale-95 border ${
+            activeTab === 'add-product' 
+              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.2)]' 
+              : 'bg-transparent border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+          }`}
+        >
+          <PackagePlus className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
+          <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
+            Ajouter Produit
+          </span>
+        </button>
       </div>
 
       {/* NAVIGATION TABS */}
-      <nav className="flex flex-col gap-2 w-full flex-1">
+      <nav className="flex flex-col gap-2 w-full flex-1 mt-4">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
           
@@ -100,7 +123,7 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
       </nav>
 
       {/* DÉCONNEXION EN BAS */}
-      <div className="pt-6 border-t border-white/5">
+      <div className="pt-6 border-t border-white/5 mt-auto">
         <button 
           onClick={handleLogout}
           className="flex items-center gap-4 px-4 py-4 rounded-2xl text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition-all w-full group"

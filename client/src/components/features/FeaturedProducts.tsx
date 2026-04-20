@@ -3,39 +3,75 @@ import ProductCard from './ProductCard';
 import { ArrowRight, Sparkles, TrendingUp, Loader2, PackageOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { productService } from '../../services/productService';
+import { supabase } from '../../lib/supabase'; // 🟢 Import de supabase pour le Realtime
 import type { Product } from '../../types';
 
 export default function FeaturedProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 1. Fonction pour charger les données (extraite pour être réutilisable)
+  const loadFeatured = async () => {
+    setIsLoading(true);
+    try {
+      const data = await productService.getProducts();
+      
+      const boostedItems = data.filter(p => p.is_boosted);
+      const itemsToDisplay = boostedItems.length > 0 
+        ? boostedItems.slice(0, 4) 
+        : data.slice(0, 4);
+      
+      setProducts(itemsToDisplay);
+    } catch (error) {
+      console.error("Erreur lors du chargement des produits à la une:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadFeatured = async () => {
-      setIsLoading(true);
-      try {
-        // On récupère les produits (ton service filtre déjà par status='approved')
-        const data = await productService.getProducts();
-        
-        // --- LOGIQUE DE REMPLISSAGE DYNAMIQUE ---
-        // 1. On récupère les produits boostés
-        const boostedItems = data.filter(p => p.is_boosted);
-        
-        // 2. On définit ce qu'on affiche :
-        // Si on a des produits boostés, on les prend en priorité.
-        // Sinon, on prend simplement les 4 produits les plus récents du catalogue.
-        const itemsToDisplay = boostedItems.length > 0 
-          ? boostedItems.slice(0, 4) 
-          : data.slice(0, 4);
-        
-        setProducts(itemsToDisplay);
-      } catch (error) {
-        console.error("Erreur lors du chargement des produits à la une:", error);
-      } finally {
-        setIsLoading(false);
-      }
+    // 2. Chargement initial
+    loadFeatured();
+
+    // 3. 🟢 LOGIQUE REALTIME : Écouter les nouveautés dans la base de données
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT', // On écoute uniquement les nouveaux produits insérés
+          schema: 'public',
+          table: 'products',
+        },
+        (payload) => {
+          console.log('Un nouveau produit a été détecté !', payload);
+          // 4. Si un produit est inséré (et qu'il est potentiellement 'approved' grâce à ton form),
+          // on recharge silencieusement la liste pour le faire apparaître instantanément.
+          // On ne remet pas setIsLoading(true) pour éviter que ça clignote.
+          loadFeaturedSilently();
+        }
+      )
+      .subscribe();
+
+    // Fonction de rechargement "silencieux" pour le realtime
+    const loadFeaturedSilently = async () => {
+        try {
+          const data = await productService.getProducts();
+          const boostedItems = data.filter(p => p.is_boosted);
+          const itemsToDisplay = boostedItems.length > 0 
+            ? boostedItems.slice(0, 4) 
+            : data.slice(0, 4);
+          
+          setProducts(itemsToDisplay);
+        } catch (error) {
+           // On ignore silencieusement
+        }
     };
 
-    loadFeatured();
+    // 5. Nettoyage de l'abonnement quand on quitte la page
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (
@@ -92,7 +128,6 @@ export default function FeaturedProducts() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 animate-in fade-in duration-700">
             {products.map((product) => (
               <div key={product.id} className="relative group h-full">
-                 {/* 🟢 Le badge s'adapte : il affiche "Coup de cœur" uniquement si c'est vrai, sinon "Nouveau" */}
                  <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-white/90 backdrop-blur-md px-2.5 py-1 md:px-3 md:py-1 rounded-full border border-white shadow-sm flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <Sparkles className={`w-3 h-3 ${product.is_boosted ? 'text-orange-500' : 'text-blue-500'}`} />
                     <span className="text-[9px] md:text-[10px] font-black text-slate-900 uppercase tracking-tighter">
