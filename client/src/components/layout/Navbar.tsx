@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ShoppingCart, User, Menu, X, ChevronDown, 
-  CircleDashed, MapPin, Settings, LogOut, Trash2, ArrowRight,
-  Plus, Minus, BadgeCheck, Diamond, Crown
+  MapPin, LogOut, BadgeCheck, Crown
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -11,7 +10,13 @@ import { supabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
 
 // --- CONSTANTES ---
-const CATALOG_CATEGORIES = ["Pièces moteur", "Filtres et huile", "Direction / Suspension / Train", "Freinage", "Distribution et Accessoires", "Embrayage et Boîte de vitesse", "Démarrage électrique", "Optiques / Phares / Ampoules", "Capteurs et Sondes", "Essuie-glaces et pièces", "Echappement", "Carrosserie / Vitres / Peinture", "Pièces Habitacle", "Joints et Étanchéité", "Chauffage et Climatisation"];
+const CATALOG_CATEGORIES = [
+  "Pièces moteur", "Filtres et huile", "Direction / Suspension / Train", 
+  "Freinage", "Distribution et Accessoires", "Embrayage et Boîte de vitesse", 
+  "Démarrage électrique", "Optiques / Phares / Ampoules", "Capteurs et Sondes", 
+  "Essuie-glaces et pièces", "Echappement", "Carrosserie / Vitres / Peinture", 
+  "Pièces Habitacle", "Joints et Étanchéité", "Chauffage et Climatisation"
+];
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -20,11 +25,13 @@ export default function Navbar() {
   const totalItems = useCartStore((state) => state.getTotalItems());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  
+  // 🟢 État pour gérer l'accordéon du catalogue sur mobile
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
-    setActiveAccordion(null);
+    setActiveAccordion(null); // On referme l'accordéon quand on ferme le menu
   };
 
   const handleLogout = async () => {
@@ -42,10 +49,9 @@ export default function Navbar() {
   const getDashboardPath = () => {
     if (user?.role === 'vendor') return '/vendor/dashboard';
     if (user?.role === 'admin') return '/admin/dashboard';
-    return '/dashboard';
+    return '/dashboard'; // Ou '/customer/dashboard' selon ta route
   };
 
-  // 🟢 LOGIQUE PHOTO DE PROFIL DYNAMIQUE (Priorité à l'avatar synchronisé)
   const userPhotoUrl = user?.avatar_url || user?.user_metadata?.avatar_url || 
     `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || 'U')}&background=05070A&color=fff&bold=true`;
 
@@ -56,7 +62,7 @@ export default function Navbar() {
           
           {/* LOGO & MENU MOBILE BUTTON */}
           <div className="flex-shrink-0 flex items-center gap-3">
-            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="xl:hidden p-2 text-slate-600 hover:text-blue-600 transition-colors">
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="xl:hidden p-2 text-slate-600 hover:text-blue-600 transition-colors z-50">
               {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
             <Link to="/" className="font-[1000] text-xl sm:text-3xl text-blue-700 tracking-tighter uppercase italic">
@@ -73,7 +79,9 @@ export default function Navbar() {
               <div className="absolute left-0 top-full mt-0 w-[500px] bg-white border border-slate-100 shadow-2xl rounded-b-[2rem] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 p-8">
                 <div className="grid grid-cols-2 gap-3">
                   {CATALOG_CATEGORIES.slice(0, 10).map((cat, i) => (
-                    <Link key={i} to="/catalog" className="text-[10px] font-bold text-slate-500 hover:text-blue-600 uppercase tracking-tight p-2 hover:bg-blue-50 rounded-lg">{cat}</Link>
+                    <Link key={i} to={`/catalog?category=${encodeURIComponent(cat)}`} className="text-[10px] font-bold text-slate-500 hover:text-blue-600 uppercase tracking-tight p-2 hover:bg-blue-50 rounded-lg transition-colors">
+                      {cat}
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -103,58 +111,44 @@ export default function Navbar() {
               </button>
             </div>
             
-            {/* 🔵 BLOC PROFIL VENDEUR / CLIENT */}
+            {/* BLOC PROFIL VENDEUR / CLIENT */}
             {user ? (
               <div className="flex items-center gap-3 border-l border-slate-100 pl-4 ml-2">
                 <Link 
                   to={getDashboardPath()} 
-                  className={`flex items-center gap-3 p-1 pr-4 rounded-full transition-all duration-500 border group
+                  className={`hidden sm:flex items-center gap-3 p-1 pr-4 rounded-full transition-all duration-500 border group
                     ${user.role === 'vendor' 
                       ? 'bg-[#05070A] border-amber-500/20 hover:border-amber-500 shadow-lg shadow-amber-500/5' 
                       : 'bg-slate-50 border-slate-100 hover:border-blue-200'}`}
                 >
                   <div className="relative">
                     <div className={`w-9 h-9 rounded-full p-0.5 border ${user.role === 'vendor' ? 'border-amber-500/50' : 'border-white'}`}>
-                      <img 
-                        src={userPhotoUrl} 
-                        alt="Profile" 
-                        className="w-full h-full rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform" 
-                      />
+                      <img src={userPhotoUrl} alt="Profile" className="w-full h-full rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform" />
                     </div>
-                    {/* Badge Vendeur Certifié */}
                     {user.vendor_status === 'approved' && (
                       <div className="absolute -top-1 -right-1 bg-amber-500 text-black rounded-full p-0.5 shadow-md">
                         <BadgeCheck className="w-3 h-3" />
                       </div>
                     )}
                   </div>
-
-                  <div className="hidden sm:flex flex-col items-start leading-tight">
+                  <div className="flex flex-col items-start leading-tight">
                     <span className={`text-[9px] font-black uppercase tracking-tight transition-colors 
                       ${user.role === 'vendor' ? 'text-white group-hover:text-amber-500' : 'text-slate-900 group-hover:text-blue-700'}`}>
-                      {user.full_name || 'Partenaire'}
+                      {user.full_name?.split(' ')[0] || 'Partenaire'}
                     </span>
                     <span className={`text-[8px] font-bold uppercase tracking-widest flex items-center gap-1
                       ${user.role === 'vendor' ? 'text-amber-500/70' : 'text-blue-600/70'}`}>
-                      {user.role === 'vendor' ? (
-                        <> <Crown className="w-2 h-2" /> Espace Pro </>
-                      ) : (
-                        'Compte Client'
-                      )}
+                      {user.role === 'vendor' ? <><Crown className="w-2 h-2" /> Espace Pro</> : 'Compte Client'}
                     </span>
                   </div>
                 </Link>
                 
-                <button 
-                  onClick={handleLogout} 
-                  className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                  title="Déconnexion"
-                >
+                <button onClick={handleLogout} className="hidden sm:block p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Déconnexion">
                   <LogOut className="h-5 w-5" />
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-full hover:bg-blue-700 transition-all shadow-md">
+              <Link to="/login" className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-full hover:bg-blue-700 transition-all shadow-md">
                 <User className="h-4 w-4" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Connexion</span>
               </Link>
@@ -163,24 +157,62 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* MOBILE MENU */}
-      <div className={`xl:hidden absolute top-full left-0 w-full bg-white border-t border-slate-100 shadow-2xl transition-all duration-500 overflow-hidden ${isMobileMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="p-6 space-y-4">
-          <Link to="/catalog" onClick={closeMobileMenu} className="block text-slate-900 font-black uppercase text-xs tracking-widest">Catalogue</Link>
-          <Link to="/huiles" onClick={closeMobileMenu} className="block text-slate-900 font-black uppercase text-xs tracking-widest">Huile Moteur</Link>
+      {/* 🟢 MOBILE MENU COMPLET (Plein écran avec Scroll) */}
+      <div className={`xl:hidden fixed inset-0 top-16 bg-white z-40 transition-all duration-300 overflow-y-auto pb-24 ${isMobileMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-4'}`}>
+        <div className="p-6 space-y-2">
           
-          <div className="pt-4 border-t border-slate-50">
+          {/* ACCORDÉON CATALOGUE */}
+          <div className="border-b border-slate-100 pb-2">
+            <button 
+              onClick={() => setActiveAccordion(activeAccordion === 'catalog' ? null : 'catalog')}
+              className="w-full py-4 flex justify-between items-center text-slate-900 font-black uppercase text-sm tracking-widest"
+            >
+              Catalogue <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${activeAccordion === 'catalog' ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {/* Liste des catégories sur mobile */}
+            <div className={`overflow-hidden transition-all duration-500 ease-in-out ${activeAccordion === 'catalog' ? 'max-h-[800px] opacity-100 mb-4' : 'max-h-0 opacity-0'}`}>
+              <div className="pl-4 border-l-2 border-slate-100 space-y-4 pt-2">
+                {CATALOG_CATEGORIES.map((cat, i) => (
+                  <Link 
+                    key={i} 
+                    to={`/catalog?category=${encodeURIComponent(cat)}`} 
+                    onClick={closeMobileMenu} 
+                    className="block text-[11px] font-bold text-slate-500 uppercase tracking-tight hover:text-blue-600"
+                  >
+                    {cat}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Link to="/huiles" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest">Huile Moteur</Link>
+          <Link to="/outillage" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest">Outillage</Link>
+          <Link to="/garages" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest">Garages Partenaires</Link>
+          
+          {/* ZONE D'ACTION / PROFIL MOBILE */}
+          <div className="pt-8 space-y-4">
             {user ? (
-              <Link to={getDashboardPath()} onClick={closeMobileMenu} className={`flex items-center justify-center gap-3 w-full p-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em]
-                ${user.role === 'vendor' ? 'bg-[#05070A] text-amber-500' : 'bg-blue-600 text-white'}`}>
-                Tableau de Bord
-              </Link>
+              <>
+                <Link to={getDashboardPath()} onClick={closeMobileMenu} className={`flex items-center justify-center gap-3 w-full p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] shadow-lg
+                  ${user.role === 'vendor' ? 'bg-[#05070A] text-amber-500 shadow-amber-500/20' : 'bg-blue-600 text-white shadow-blue-200'}`}>
+                  Mon Tableau de Bord
+                </Link>
+                <button onClick={handleLogout} className="flex items-center justify-center gap-2 w-full p-5 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em]">
+                  <LogOut className="w-4 h-4" /> Se déconnecter
+                </button>
+              </>
             ) : (
-              <Link to="/login" onClick={closeMobileMenu} className="flex items-center justify-center w-full p-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.3em]">
+              <Link to="/login" onClick={closeMobileMenu} className="flex items-center justify-center w-full p-5 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] shadow-lg shadow-blue-200">
                 Se connecter
               </Link>
             )}
+            <Link to="/become-vendor" onClick={closeMobileMenu} className="flex items-center justify-center w-full p-5 border-2 border-blue-100 text-blue-600 bg-blue-50 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em]">
+              Devenir Vendeur
+            </Link>
           </div>
+
         </div>
       </div>
     </nav>
