@@ -19,6 +19,11 @@ import SearchPage from './pages/SearchPage';
 import Checkout from './pages/Checkout';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 
+// 🟢 PAGES DE SUPPORT & ASSISTANCE
+import SupportPage from './pages/support/SupportPage';
+import ReturnPolicyPage from './pages/support/ReturnPolicyPage';
+import FaqPage from './pages/support/FaqPage';
+
 // 🔴 CORRECTION DES IMPORTS VENDEUR (Noms clarifiés)
 // On renomme le fichier à la racine en "BecomeVendorPage" car c'est le formulaire de candidature
 import BecomeVendorPage from './pages/VendorDashboard'; 
@@ -70,7 +75,12 @@ function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
 
-          {/* 🟢 LA BONNE PAGE ICI : Le formulaire de candidature */}
+          {/* 🟢 ROUTES ASSISTANCE */}
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/return-policy" element={<ReturnPolicyPage />} />
+          <Route path="/faq" element={<FaqPage />} />
+
+          {/* Le formulaire de candidature Vendeur */}
           <Route path="/become-vendor" element={<BecomeVendorPage />} /> 
 
           {/* ADMINISTRATION */}
@@ -82,7 +92,6 @@ function App() {
           {/* ESPACE DE GESTION VENDEUR (Privé) */}
           <Route path="/vendor" element={<VendorLayout />}>
             <Route element={<VendorGuard />}>
-              {/* 🟢 LA BONNE PAGE ICI : Les statistiques et les abonnements */}
               <Route index element={<VendorDashboard />} /> 
               <Route path="dashboard" element={<VendorDashboard />} />
               

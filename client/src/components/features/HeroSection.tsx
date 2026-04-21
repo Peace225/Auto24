@@ -60,8 +60,8 @@ export default function HeroSection() {
     <section className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div className="flex flex-col lg:flex-row gap-6 items-stretch">
         
-        {/* GAUCHE : BLOC RECHERCHE */}
-        <div className="w-full lg:w-[360px] bg-white border border-slate-100 rounded-[2.5rem] shadow-xl p-6 flex flex-col z-20">
+        {/* BLOC RECHERCHE : order-2 sur mobile (en bas), lg:order-1 sur ordi (à gauche) */}
+        <div className="w-full lg:w-[360px] bg-white border border-slate-100 rounded-[2.5rem] shadow-xl p-6 flex flex-col z-20 order-2 lg:order-1">
           <div className="mb-6 text-center lg:text-left">
              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">Identifiez votre véhicule</h2>
              <div className="w-10 h-1 bg-blue-600 mt-3 rounded-full mx-auto lg:mx-0"></div>
@@ -77,8 +77,8 @@ export default function HeroSection() {
           </button>
         </div>
 
-        {/* DROITE : CARROUSEL PUBLICITAIRE */}
-        <div className="flex-1 relative min-h-[350px] sm:min-h-[400px] lg:min-h-[480px] rounded-[2.5rem] overflow-hidden shadow-2xl bg-slate-900">
+        {/* CARROUSEL PUBLICITAIRE : order-1 sur mobile (en haut), lg:order-2 sur ordi (à droite) */}
+        <div className="flex-1 relative min-h-[350px] sm:min-h-[400px] lg:min-h-[480px] rounded-[2.5rem] overflow-hidden shadow-2xl bg-slate-900 order-1 lg:order-2">
           {BANNERS.map((banner, index) => (
             <div
               key={banner.id}
