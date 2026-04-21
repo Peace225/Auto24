@@ -78,7 +78,7 @@ export default function HeroSection() {
         </div>
 
         {/* CARROUSEL PUBLICITAIRE : order-1 sur mobile (en haut), lg:order-2 sur ordi (à droite) */}
-        <div className="flex-1 relative min-h-[350px] sm:min-h-[400px] lg:min-h-[480px] rounded-[2.5rem] overflow-hidden shadow-2xl bg-slate-900 order-1 lg:order-2">
+        <div className="flex-1 relative min-h-[350px] sm:min-h-[400px] lg:min-h-[480px] rounded-[1.1rem] overflow-hidden shadow-2xl bg-slate-900 order-1 lg:order-2">
           {BANNERS.map((banner, index) => (
             <div
               key={banner.id}

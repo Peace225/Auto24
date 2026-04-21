@@ -111,18 +111,20 @@ export default function Navbar() {
               </button>
             </div>
             
-            {/* BLOC PROFIL VENDEUR / CLIENT */}
+            {/* 🟢 BLOC PROFIL VENDEUR / CLIENT (Modifié pour mobile) */}
             {user ? (
-              <div className="flex items-center gap-3 border-l border-slate-100 pl-4 ml-2">
+              <div className="flex items-center gap-3 sm:border-l sm:border-slate-100 sm:pl-4 sm:ml-2">
+                
+                {/* Lien vers Dashboard */}
                 <Link 
                   to={getDashboardPath()} 
-                  className={`hidden sm:flex items-center gap-3 p-1 pr-4 rounded-full transition-all duration-500 border group
+                  className={`flex items-center gap-3 p-1 sm:pr-4 rounded-full transition-all duration-500 sm:border group
                     ${user.role === 'vendor' 
-                      ? 'bg-[#05070A] border-amber-500/20 hover:border-amber-500 shadow-lg shadow-amber-500/5' 
-                      : 'bg-slate-50 border-slate-100 hover:border-blue-200'}`}
+                      ? 'sm:bg-[#05070A] sm:border-amber-500/20 hover:border-amber-500 sm:shadow-lg sm:shadow-amber-500/5' 
+                      : 'sm:bg-slate-50 sm:border-slate-100 hover:border-blue-200'}`}
                 >
                   <div className="relative">
-                    <div className={`w-9 h-9 rounded-full p-0.5 border ${user.role === 'vendor' ? 'border-amber-500/50' : 'border-white'}`}>
+                    <div className={`w-9 h-9 rounded-full p-0.5 sm:border ${user.role === 'vendor' ? 'sm:border-amber-500/50' : 'sm:border-white'}`}>
                       <img src={userPhotoUrl} alt="Profile" className="w-full h-full rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform" />
                     </div>
                     {user.vendor_status === 'approved' && (
@@ -131,7 +133,9 @@ export default function Navbar() {
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-col items-start leading-tight">
+                  
+                  {/* Texte visible uniquement sur Desktop */}
+                  <div className="hidden sm:flex flex-col items-start leading-tight">
                     <span className={`text-[9px] font-black uppercase tracking-tight transition-colors 
                       ${user.role === 'vendor' ? 'text-white group-hover:text-amber-500' : 'text-slate-900 group-hover:text-blue-700'}`}>
                       {user.full_name?.split(' ')[0] || 'Partenaire'}
@@ -148,16 +152,17 @@ export default function Navbar() {
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-full hover:bg-blue-700 transition-all shadow-md">
-                <User className="h-4 w-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Connexion</span>
+              // 🟢 Bouton de connexion visible sur Mobile (Icône) ET Desktop (Texte)
+              <Link to="/login" className="flex items-center gap-2 p-2.5 sm:px-5 sm:py-2.5 sm:bg-slate-900 text-slate-700 hover:text-blue-600 sm:text-white rounded-full sm:hover:bg-blue-700 transition-all sm:shadow-md">
+                <User className="h-6 w-6 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Connexion</span>
               </Link>
             )}
           </div>
         </div>
       </div>
 
-      {/* 🟢 MOBILE MENU COMPLET (Plein écran avec Scroll) */}
+      {/* MOBILE MENU COMPLET (Plein écran avec Scroll) */}
       <div className={`xl:hidden fixed inset-0 top-16 bg-white z-40 transition-all duration-300 overflow-y-auto pb-24 ${isMobileMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-4'}`}>
         <div className="p-6 space-y-2">
           
