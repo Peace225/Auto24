@@ -58,10 +58,8 @@ export default function VendorSidebar() {
 
   return (
     <>
-      {/* MODIFICATION : pt-[200px] 
-          On augmente fortement le padding pour passer sous la barre de recherche bleue.
-      */}
-      <aside className="fixed left-0 top-0 bottom-0 w-72 bg-[#05070B] text-white hidden lg:flex flex-col z-[30] pt-[200px] border-r border-amber-500/10 shadow-2xl">
+      {/* 🟢 CORRECTION ICI : z-10 au lieu de z-[30] pour que le footer puisse passer par-dessus */}
+      <aside className="fixed left-0 top-0 bottom-0 w-72 bg-[#05070B] text-white hidden lg:flex flex-col z-10 pt-[200px] border-r border-amber-500/10 shadow-2xl">
         
         {/* Section Identité (Logo + Nom) */}
         <div className="px-8 mb-10 relative overflow-hidden shrink-0">

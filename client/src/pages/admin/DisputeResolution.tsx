@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Gavel, User, Store, MessageSquare, Scale, 
   AlertCircle, CheckCircle, XCircle, FileText, 
-  Image as ImageIcon, ArrowLeft, Loader2 
+  Image as ImageIcon, ArrowLeft, Loader2, Wallet, TrendingUp 
 } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -20,8 +20,16 @@ interface Dispute {
   vendor_store: string;
 }
 
+// 🟢 Taux de commission de la plateforme
+const COMMISSION_RATE = 0.15; 
+
+// Helper pour formater les prix
+const formatPrice = (price: number) => {
+  return new Intl.NumberFormat('fr-FR').format(Math.round(price));
+};
+
 export default function DisputeResolution() {
-  const { id } = useParams<{ id: string }>(); // Récupère l'ID du litige dans l'URL
+  const { id } = useParams<{ id: string }>(); 
   const navigate = useNavigate();
   
   const [dispute, setDispute] = useState<Dispute | null>(null);
@@ -38,19 +46,18 @@ export default function DisputeResolution() {
   const fetchDisputeDetails = async () => {
     setLoading(true);
     try {
-      // 1. Récupérer les infos du litige et les jointures
       const { data, error } = await supabase
         .from('disputes')
         .select(`
           *,
-          orders(amount, profiles(full_name), vendors:vendor_id(store_name))
+          orders(amount, profiles:user_id(full_name), vendors:vendor_id(store_name))
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
       
-      // Adaptation des données reçues
+      // Adaptation sécurisée des données reçues
       setDispute({
         id: data.id,
         order_id: data.order_id,
@@ -58,13 +65,12 @@ export default function DisputeResolution() {
         reason: data.reason,
         customer_statement: data.customer_statement,
         vendor_statement: data.vendor_statement,
-        amount: data.orders.amount,
-        customer_name: data.orders.profiles.full_name,
-        vendor_store: data.orders.vendors.store_name
+        amount: data.orders?.amount || 0,
+        customer_name: data.orders?.profiles?.full_name || 'Client',
+        vendor_store: data.orders?.vendors?.store_name || 'Boutique'
       });
       setDecision(data.status);
 
-      // 2. Récupérer le chat du litige
       const { data: chat } = await supabase
         .from('dispute_messages')
         .select('*')
@@ -86,8 +92,8 @@ export default function DisputeResolution() {
 
     setIsSubmitting(true);
     try {
-      // Mise à jour du litige
-      const { error } = await supabase
+      // 1. Mise à jour du statut du litige
+      const { error: disputeError } = await supabase
         .from('disputes')
         .update({ 
           status: decision, 
@@ -96,15 +102,25 @@ export default function DisputeResolution() {
         })
         .eq('id', id);
 
-      if (error) throw error;
+      if (disputeError) throw disputeError;
 
-      // Logique métier : Si 'refunded', on pourrait marquer la commande comme annulée
-      // Si 'validated', on libère les fonds du vendeur.
+      // 2. 🟢 LOGIQUE TRANSACTIONNELLE : Mise à jour de la commande
+      // Si remboursé -> commande 'cancelled' (les stats baissent)
+      // Si validé -> commande 'completed' (l'argent est validé dans les stats)
+      const finalOrderStatus = decision === 'refunded' ? 'cancelled' : 'completed';
       
-      alert("Le dossier a été fermé et les parties ont été notifiées.");
-      navigate('/admin/dashboard');
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: finalOrderStatus })
+        .eq('id', dispute?.order_id);
+
+      if (orderError) throw orderError;
+      
+      alert(`Dossier fermé avec succès. La commande est maintenant marquée comme ${finalOrderStatus}.`);
+      navigate('/admin/dashboard'); // Redirige vers le dashboard pour voir les stats à jour
     } catch (err) {
       alert("Une erreur est survenue lors de la fermeture.");
+      console.error(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -115,6 +131,11 @@ export default function DisputeResolution() {
       <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
     </div>
   );
+
+  // 🟢 Calculs financiers dynamiques
+  const amount = dispute?.amount || 0;
+  const commission = amount * COMMISSION_RATE;
+  const vendorShare = amount - commission;
 
   return (
     <div className="bg-[#0B0F1A] min-h-screen text-slate-200 p-8 lg:p-12">
@@ -134,7 +155,9 @@ export default function DisputeResolution() {
             <Scale className="w-4 h-4 text-blue-400" />
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Salle d'audience virtuelle</span>
           </div>
-          <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-tighter">Montant en jeu : {dispute?.amount.toLocaleString()} CFA</p>
+          <p className="text-xs font-black text-white mt-2 uppercase tracking-widest bg-slate-900 px-4 py-2 rounded-xl border border-slate-700 shadow-inner">
+            En jeu : <span className="text-emerald-400">{formatPrice(amount)} CFA</span>
+          </p>
         </div>
       </div>
 
@@ -211,20 +234,53 @@ export default function DisputeResolution() {
               <button 
                 onClick={() => setDecision('refunded')}
                 disabled={dispute?.status !== 'pending'}
-                className={`w-full py-5 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${decision === 'refunded' ? 'border-red-500 bg-red-500/10' : 'border-slate-700 hover:bg-slate-800 disabled:opacity-50'}`}
+                className={`w-full py-5 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${decision === 'refunded' ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'border-slate-700 hover:bg-slate-800 disabled:opacity-50'}`}
               >
                 <XCircle className={`w-6 h-6 ${decision === 'refunded' ? 'text-red-500' : 'text-slate-500'}`} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Rembourser le Client</span>
+                <span className="text-[10px] font-black uppercase tracking-widest mt-1">Rembourser le Client</span>
               </button>
 
               <button 
                 onClick={() => setDecision('validated')}
                 disabled={dispute?.status !== 'pending'}
-                className={`w-full py-5 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${decision === 'validated' ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-700 hover:bg-slate-800 disabled:opacity-50'}`}
+                className={`w-full py-5 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${decision === 'validated' ? 'border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'border-slate-700 hover:bg-slate-800 disabled:opacity-50'}`}
               >
                 <CheckCircle className={`w-6 h-6 ${decision === 'validated' ? 'text-emerald-500' : 'text-slate-500'}`} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Valider la Vente</span>
+                <span className="text-[10px] font-black uppercase tracking-widest mt-1">Valider la Vente</span>
               </button>
+            </div>
+
+            {/* 🟢 BLOC D'ANALYSE FINANCIÈRE EN TEMPS RÉEL */}
+            <div className={`mt-6 p-5 rounded-2xl border transition-all duration-500 ${
+              decision === 'refunded' ? 'bg-red-500/5 border-red-500/20' 
+              : decision === 'validated' ? 'bg-emerald-500/5 border-emerald-500/20' 
+              : 'bg-slate-900 border-slate-700'
+            }`}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3 text-center">Impact Financier</p>
+              
+              {decision === 'pending' && (
+                <p className="text-[10px] text-center text-slate-400 font-bold italic">Sélectionnez un verdict pour voir la distribution des fonds.</p>
+              )}
+
+              {decision === 'refunded' && (
+                <div className="flex justify-between items-center text-[11px] font-black uppercase text-red-400">
+                  <span>Retour Client</span>
+                  <span>{formatPrice(amount)} CFA</span>
+                </div>
+              )}
+
+              {decision === 'validated' && (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                    <span className="flex items-center gap-1"><Wallet className="w-3 h-3" /> Payout Vendeur</span>
+                    <span>{formatPrice(vendorShare)} CFA</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-purple-400 border-t border-slate-700/50 pt-3">
+                    <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Marge Plateforme</span>
+                    <span>{formatPrice(commission)} CFA</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-8 pt-8 border-t border-slate-700 text-left">
@@ -250,7 +306,9 @@ export default function DisputeResolution() {
             
             {dispute?.status !== 'pending' && (
               <div className="mt-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700 text-center">
-                <span className="text-[10px] font-black text-slate-500 uppercase">Dossier Classé : {dispute?.status === 'refunded' ? 'Remboursement' : 'Validation'}</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Dossier Classé : {dispute?.status === 'refunded' ? 'Remboursement' : 'Validation'}
+                </span>
               </div>
             )}
           </div>
@@ -258,7 +316,7 @@ export default function DisputeResolution() {
           <div className="bg-orange-500/5 border border-orange-500/20 p-6 rounded-[2rem] flex items-start gap-4">
             <AlertCircle className="w-5 h-5 text-orange-500 shrink-0" />
             <p className="text-[9px] font-black text-orange-400 uppercase leading-relaxed tracking-tighter text-left">
-              Attention : Une fois le dossier fermé, les fonds seront automatiquement transférés par le système Stripe/Wave. Cette action est irréversible.
+              Attention : Une fois le dossier fermé, la commande sera mise à jour et les fonds seront automatiquement affectés au dashboard financier. Cette action est irréversible.
             </p>
           </div>
         </div>

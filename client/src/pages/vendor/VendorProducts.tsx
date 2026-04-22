@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { PlusCircle, X, UploadCloud, Zap, Package, Loader2, AlertCircle, Trash2, CheckCircle2, Search, ShieldAlert } from 'lucide-react';
+import { PlusCircle, X, UploadCloud, Zap, Package, Loader2, AlertCircle, Trash2, CheckCircle2, Search, ShieldAlert, Crown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
@@ -19,7 +19,7 @@ export default function VendorProducts() {
   
   // --- ÉTATS DU VENDEUR ---
   const [userPlan, setUserPlan] = useState('free');
-  const [vendorStatus, setVendorStatus] = useState('unverified'); // 🟢 NOUVEAU : Statut de la boutique
+  const [vendorStatus, setVendorStatus] = useState('unverified');
   const [productCount, setProductCount] = useState(0);
   const MAX_FREE_PRODUCTS = 10;
 
@@ -32,24 +32,23 @@ export default function VendorProducts() {
     image: '', 
     previewUrl: '' 
   });
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
 
   // --- INITIALISATION & TEMPS RÉEL ---
   const fetchProducts = useCallback(async () => {
     if (!user) return;
     try {
-      // 1. On récupère le statut global du vendeur
       const { data: profile } = await supabase
         .from('profiles')
-        .select('subscription_plan, status') // 🟢 NOUVEAU : On récupère aussi le 'status'
+        .select('subscription_plan, status')
         .eq('id', user.id)
         .single();
       
       if (profile) {
         setUserPlan(profile.subscription_plan || 'free');
-        setVendorStatus(profile.status || 'unverified'); // 'unverified', 'pending', 'approved', 'rejected'
+        setVendorStatus(profile.status || 'unverified');
       }
 
-      // 2. On charge ses produits existants
       const { data: vendorProducts, error } = await supabase
         .from('products')
         .select('*')
@@ -70,7 +69,6 @@ export default function VendorProducts() {
   useEffect(() => {
     fetchProducts();
 
-    // 🟢 TEMPS RÉEL : On écoute les produits ET les changements de profil (si l'admin valide)
     if (!user) return;
     const channel = supabase
       .channel(`vendor-${user.id}-products-profile`)
@@ -87,50 +85,53 @@ export default function VendorProducts() {
     };
   }, [user, fetchProducts]);
 
-  // --- LOGIQUE CLOUDINARY ---
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- LOGIQUE D'UPLOAD SUPABASE ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setFileToUpload(file);
     const localPreview = URL.createObjectURL(file);
     setNewProduct(prev => ({ ...prev, previewUrl: localPreview }));
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'spaceauto_preset');
-    formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'votre_cloud_name');
-
-    try {
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'votre_cloud_name'}/image/upload`,
-        { method: 'POST', body: formData }
-      );
-      
-      if (!response.ok) throw new Error("Échec de l'upload");
-
-      const data = await response.json();
-      setNewProduct(prev => ({ ...prev, image: data.secure_url }));
-    } catch (error) {
-      console.error("Erreur Cloudinary:", error);
-      toast.error("Erreur lors du téléchargement de l'image");
-      setNewProduct(prev => ({ ...prev, image: prev.previewUrl }));
-    } finally {
-      setUploading(false);
-    }
   };
 
   // --- SAUVEGARDE DANS SUPABASE ---
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price || (!newProduct.image && !newProduct.previewUrl)) {
+    // 🟢 SÉCURITÉ CÔTÉ SAUVEGARDE
+    if (userPlan === 'free' && productCount >= MAX_FREE_PRODUCTS) {
+      toast.error("Vous avez atteint votre limite de produits gratuits.");
+      return;
+    }
+
+    if (!newProduct.name || !newProduct.price || (!fileToUpload && !newProduct.previewUrl)) {
       toast.error("Veuillez remplir les champs obligatoires et ajouter une image.");
       return;
     }
     
     if (!user) return;
     setIsSaving(true);
+    setUploading(true);
 
     try {
+      let finalImageUrl = newProduct.image;
+
+      if (fileToUpload) {
+        const fileExt = fileToUpload.name.split('.').pop();
+        const fileName = `products/${user.id}-${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('images')
+          .upload(fileName, fileToUpload);
+
+        if (uploadError) throw uploadError;
+        
+        const { data: publicUrlData } = supabase.storage
+          .from('images')
+          .getPublicUrl(fileName);
+        
+        finalImageUrl = publicUrlData.publicUrl;
+      }
+
       const { error } = await supabase
         .from('products')
         .insert([{
@@ -139,21 +140,23 @@ export default function VendorProducts() {
           brand: newProduct.brand,
           price: parseFloat(newProduct.price),
           stock: parseInt(newProduct.stock) || 1,
-          images: [newProduct.image || newProduct.previewUrl], 
-          status: 'pending' // 🟢 On peut forcer à 'pending' pour que l'admin valide CHAQUE pièce si tu veux, ou 'approved' selon ton choix.
+          image_url: finalImageUrl, 
+          status: 'pending' // L'admin doit valider
         }]);
 
       if (error) throw error;
 
       setIsModalOpen(false);
       setNewProduct({ name: '', price: '', stock: '', brand: 'Générique', image: '', previewUrl: '' });
-      toast.success("Pièce ajoutée avec succès !");
+      setFileToUpload(null);
+      toast.success("Pièce ajoutée et en attente de validation !");
 
     } catch (error: any) {
       console.error("Erreur ajout:", error);
       toast.error(`Erreur : ${error.message || 'Impossible de créer la pièce'}`);
     } finally {
       setIsSaving(false);
+      setUploading(false);
     }
   };
 
@@ -169,23 +172,29 @@ export default function VendorProducts() {
     }
   };
 
+  // 🟢 LA LOGIQUE D'OUVERTURE DU MODAL (CORRIGÉE)
   const handleOpenModal = () => {
-    // 🟢 SÉCURITÉ 1 : Est-ce que le vendeur est validé par l'admin ?
+    // 1. On vérifie d'abord si la boutique est approuvée par l'admin
     if (vendorStatus !== 'approved') {
       toast.error("Votre boutique doit être validée par un administrateur avant de pouvoir ajouter des pièces.");
       return;
     }
 
-    // Sécurité 2 : A-t-il atteint la limite de son plan gratuit ?
+    // 2. Si elle est approuvée, on vérifie la limite de l'abonnement
     if (userPlan === 'free' && productCount >= MAX_FREE_PRODUCTS) {
       toast.error("Limite de 10 produits atteinte. Passez au plan Pro !");
-      navigate('/vendor/settings');
+      navigate('/vendor/settings'); // Redirige vers la page pour payer l'abonnement
       return;
     }
+
+    // 3. Si tout est bon, on ouvre le modal
     setIsModalOpen(true);
   };
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // 🟢 Variable pour savoir si on bloque le bouton visuellement
+  const isLimitReached = userPlan === 'free' && productCount >= MAX_FREE_PRODUCTS;
 
   return (
     <div className="space-y-6 md:space-y-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -225,13 +234,13 @@ export default function VendorProducts() {
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 {userPlan === 'free' && (
-                   <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${productCount >= MAX_FREE_PRODUCTS ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                   <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${isLimitReached ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                      {productCount} / {MAX_FREE_PRODUCTS} (Gratuit)
                    </span>
                 )}
                 {userPlan !== 'free' && (
-                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200">
-                    Stock Illimité ({productCount})
+                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200 flex items-center gap-1">
+                    <Crown className="w-3 h-3" /> Stock Illimité ({productCount})
                   </span>
                 )}
               </div>
@@ -250,29 +259,35 @@ export default function VendorProducts() {
               className="w-full pl-11 pr-4 py-3.5 bg-slate-50 rounded-xl text-[10px] md:text-xs font-black border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all uppercase placeholder:text-slate-400 shadow-inner"
             />
           </div>
+          
+          {/* 🟢 BOUTON AJOUTER DYNAMIQUE */}
           <button 
             onClick={handleOpenModal} 
-            // 🟢 Le bouton a l'air désactivé si le vendeur n'est pas approuvé
             disabled={vendorStatus !== 'approved'}
             className={`w-full sm:w-auto px-6 py-3.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all duration-300 shadow-md border border-transparent
-              ${vendorStatus === 'approved' 
-                ? 'bg-[#111625] text-white hover:bg-blue-600 active:scale-95' 
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-70'}
+              ${vendorStatus !== 'approved' 
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-70' // Désactivé si non validé par admin
+                : isLimitReached 
+                  ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] hover:scale-105 border-amber-500/50' // Style PRO si limite atteinte
+                  : 'bg-[#111625] text-white hover:bg-blue-600 active:scale-95' // Style normal
+              }
             `}
           >
-            <PlusCircle className="w-5 h-5" /> Ajouter
+            {isLimitReached ? (
+              <><Crown className="w-5 h-5" /> Passer PRO</>
+            ) : (
+              <><PlusCircle className="w-5 h-5" /> Ajouter</>
+            )}
           </button>
         </div>
       </div>
-
-      {/* ... (LE RESTE DU CODE RESTE IDENTIQUE : GRILLES DES PRODUITS ET MODAL D'AJOUT) ... */}
       
       {/* RAPPEL GARANTIE / ETAT */}
-      {userPlan === 'free' && productCount >= MAX_FREE_PRODUCTS && (
+      {isLimitReached && (
         <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-start gap-3 animate-pulse">
           <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <p className="text-[10px] md:text-xs font-medium text-red-800 leading-relaxed">
-            <strong className="font-black uppercase">Stock plein :</strong> Vous avez atteint la limite de 10 produits gratuits. <button onClick={() => navigate('/vendor/settings')} className="underline font-bold text-red-600 ml-1">Passez en PRO pour tout débloquer.</button>
+            <strong className="font-black uppercase">Stock plein :</strong> Vous avez atteint la limite de 10 produits gratuits. <button onClick={() => navigate('/vendor/settings')} className="underline font-bold text-red-600 ml-1 hover:text-red-700">Passez en PRO pour tout débloquer.</button>
           </p>
         </div>
       )}
@@ -305,7 +320,7 @@ export default function VendorProducts() {
               {/* IMAGE ZONE */}
               <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-4 bg-slate-50 border border-slate-100 flex items-center justify-center p-2">
                 <img 
-                  src={p.images?.[0] || 'https://via.placeholder.com/400?text=Sans+Image'} 
+                  src={p.image_url || 'https://via.placeholder.com/400?text=Sans+Image'} 
                   alt={p.name} 
                   className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" 
                 />
@@ -443,12 +458,12 @@ export default function VendorProducts() {
                   <div className="pt-4 mt-auto">
                     <button 
                       onClick={handleAddProduct}
-                      disabled={uploading || isSaving || !newProduct.name || !newProduct.price || (!newProduct.image && !newProduct.previewUrl)}
+                      disabled={uploading || isSaving || !newProduct.name || !newProduct.price || (!fileToUpload && !newProduct.previewUrl)}
                       className="w-full bg-[#111625] text-white py-5 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-blue-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-900/20 flex items-center justify-center gap-3 border border-transparent"
                     >
                       {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Mettre en Ligne <Zap className="w-4 h-4 fill-white" /></>}
                     </button>
-                    <p className="text-[8px] font-bold text-center text-slate-400 uppercase tracking-widest mt-3">Visible sur l'accueil dès validation.</p>
+                    <p className="text-[8px] font-bold text-center text-slate-400 uppercase tracking-widest mt-3">Visible sur l'accueil dès validation par l'Admin.</p>
                   </div>
                 </div>
               </div>

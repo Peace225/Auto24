@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // Layouts
@@ -19,15 +19,13 @@ import SearchPage from './pages/SearchPage';
 import Checkout from './pages/Checkout';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 
-// 🟢 PAGES DE SUPPORT & ASSISTANCE
+// PAGES DE SUPPORT & ASSISTANCE
 import SupportPage from './pages/support/SupportPage';
 import ReturnPolicyPage from './pages/support/ReturnPolicyPage';
 import FaqPage from './pages/support/FaqPage';
 
-// 🔴 CORRECTION DES IMPORTS VENDEUR (Noms clarifiés)
-// On renomme le fichier à la racine en "BecomeVendorPage" car c'est le formulaire de candidature
+// IMPORTS VENDEUR
 import BecomeVendorPage from './pages/VendorDashboard'; 
-// On garde "VendorDashboard" pour la console réelle du vendeur
 import VendorDashboard from './pages/vendor/VendorDashboard'; 
 
 // Pages Thématiques
@@ -54,6 +52,20 @@ import AdminTransactions from "./pages/admin/AdminTransactions";
 
 import './App.css';
 
+// 🟢 COMPOSANT CONDITIONNEL POUR MASQUER WHATSAPP SUR LES DASHBOARDS
+function ConditionalWhatsApp() {
+  const location = useLocation();
+  
+  // Liste des préfixes d'URL où le bouton doit être masqué
+  const hiddenPaths = ['/admin', '/vendor', '/dashboard'];
+  
+  // Vérifie si l'URL actuelle commence par l'un des chemins interdits
+  const shouldHide = hiddenPaths.some(path => location.pathname.startsWith(path));
+
+  if (shouldHide) return null;
+  return <WhatsAppFloatingBtn />;
+}
+
 function App() {
   return (
     <Router>
@@ -75,7 +87,7 @@ function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
 
-          {/* 🟢 ROUTES ASSISTANCE */}
+          {/* ROUTES ASSISTANCE */}
           <Route path="/support" element={<SupportPage />} />
           <Route path="/return-policy" element={<ReturnPolicyPage />} />
           <Route path="/faq" element={<FaqPage />} />
@@ -110,7 +122,8 @@ function App() {
         <Route path="/register" element={<Register />} />
       </Routes>
 
-      <WhatsAppFloatingBtn />
+      {/* 🟢 EXÉCUTION DU COMPOSANT CONDITIONNEL */}
+      <ConditionalWhatsApp />
     </Router>
   );
 }

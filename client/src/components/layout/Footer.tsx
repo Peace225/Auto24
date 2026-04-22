@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-300 py-16 mt-auto border-t-[10px] border-slate-950">
+    <footer className="relative z-20 bg-slate-900 text-slate-300 py-16 mt-auto border-t-[10px] border-slate-950"> 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-12">
         
         {/* COLONNE 1 : LOGO & DESC */}
@@ -42,19 +42,16 @@ export default function Footer() {
           <h4 className="text-white text-xs font-black uppercase tracking-widest mb-6">Assistance</h4>
           <ul className="space-y-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
             <li>
-              {/* 🟢 Le lien pointe maintenant vers /support */}
               <Link to="/support" className="hover:text-blue-500 transition-colors flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-blue-900 rounded-full"></span> Support technique & Contact
               </Link>
             </li>
             <li>
-              {/* 🟢 Le lien pointe maintenant vers /return-policy */}
               <Link to="/return-policy" className="hover:text-blue-500 transition-colors flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-blue-900 rounded-full"></span> Politique de retour
               </Link>
             </li>
             <li>
-              {/* 🟢 Le lien pointe maintenant vers /faq */}
               <Link to="/faq" className="hover:text-blue-500 transition-colors flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-blue-900 rounded-full"></span> FAQ
               </Link>

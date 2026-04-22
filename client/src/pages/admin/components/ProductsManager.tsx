@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Package, Check, Ban, Eye, ShieldAlert, 
-  Store, Tag, Loader2, CheckCircle2, Trash2, FilterX, AlertTriangle, X 
+  Store, Tag, Loader2, CheckCircle2, Trash2, FilterX, AlertTriangle, X, CheckSquare, Square
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { toast } from 'react-hot-toast';
@@ -15,8 +15,10 @@ interface ProductsManagerProps {
 export default function ProductsManager({ products, onApprove, onReject }: ProductsManagerProps) {
   const [processingId, setProcessingId] = useState<string | null>(null);
   
-  // 🟢 NOUVEAUX ÉTATS POUR LA MODALE DE SUPPRESSION
-  const [productToDelete, setProductToDelete] = useState<{id: string, name: string} | null>(null);
+  // 🟢 NOUVEAUX ÉTATS POUR LA SÉLECTION MULTIPLE ET LA MODALE
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // itemsToDelete est maintenant un tableau pour gérer 1 ou plusieurs produits
+  const [itemsToDelete, setItemsToDelete] = useState<{id: string, name: string}[] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const hasPending = products.some(p => p.status === 'pending');
@@ -25,6 +27,11 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
   );
   
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+
+  // 🟢 Vider la sélection si on change d'onglet (sécurité)
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [filterStatus, vendorFilter]);
 
   useEffect(() => {
     const channel = supabase
@@ -52,6 +59,28 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
     }
   }, []);
 
+  // --- LOGIQUE DE SÉLECTION ---
+  const displayedProducts = products.filter(p => {
+    const matchesStatus = p.status === filterStatus;
+    const matchesVendor = vendorFilter ? p.vendor_id === vendorFilter : true;
+    return matchesStatus && matchesVendor;
+  });
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === displayedProducts.length) {
+      setSelectedIds([]); // Tout décocher
+    } else {
+      setSelectedIds(displayedProducts.map(p => p.id)); // Tout cocher
+    }
+  };
+
+  // --- ACTIONS ---
   const handleApproveProduct = async (productId: string) => {
     setProcessingId(productId);
     try {
@@ -79,20 +108,34 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
     }
   };
 
-  // 🟢 ÉTAPE 1 : OUVRE LA MODALE AU LIEU DU WINDOW.CONFIRM
-  const handleDeleteClick = (productId: string, productName: string) => {
-    setProductToDelete({ id: productId, name: productName });
+  // 🟢 PRÉPARATION DE LA SUPPRESSION (Simple ou Multiple)
+  const handleDeleteSingle = (productId: string, productName: string) => {
+    setItemsToDelete([{ id: productId, name: productName }]);
   };
 
-  // 🟢 ÉTAPE 2 : EXÉCUTE LA VRAIE SUPPRESSION (Quand on clique sur Confirmer dans la modale)
+  const handleDeleteBulk = () => {
+    const items = displayedProducts
+      .filter(p => selectedIds.includes(p.id))
+      .map(p => ({ id: p.id, name: p.name }));
+    setItemsToDelete(items);
+  };
+
+  // 🟢 EXÉCUTION DE LA SUPPRESSION
   const confirmDelete = async () => {
-    if (!productToDelete) return;
+    if (!itemsToDelete || itemsToDelete.length === 0) return;
     setIsDeleting(true);
     try {
-      const { error } = await supabase.from('products').delete().eq('id', productToDelete.id);
+      const idsToDelete = itemsToDelete.map(item => item.id);
+      
+      // La magie Supabase : .in() permet de supprimer plusieurs IDs d'un coup !
+      const { error } = await supabase.from('products').delete().in('id', idsToDelete);
+      
       if (error) throw error;
-      toast.success(`"${productToDelete.name}" supprimé définitivement.`);
-      setProductToDelete(null); // Ferme la modale en cas de succès
+      
+      toast.success(`${itemsToDelete.length} produit(s) supprimé(s).`);
+      setItemsToDelete(null);
+      setSelectedIds([]); // On vide la sélection
+      onApprove(); // On rafraîchit la liste
     } catch (error: any) {
       toast.error("Erreur lors de la suppression.");
     } finally {
@@ -100,23 +143,16 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
     }
   };
 
-  const displayedProducts = products.filter(p => {
-    const matchesStatus = p.status === filterStatus;
-    const matchesVendor = vendorFilter ? p.vendor_id === vendorFilter : true;
-    return matchesStatus && matchesVendor;
-  });
-
   const pendingCount = products.filter(p => p.status === 'pending').length;
   const approvedCount = products.filter(p => p.status === 'approved').length;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 relative pb-24">
       
-      {/* 🔴 NOUVEAU : LA JOLIE MODALE DE SUPPRESSION */}
-      {productToDelete && (
+      {/* 🔴 MODALE DE SUPPRESSION (ADAPTÉE POUR MULTIPLE) */}
+      {itemsToDelete && itemsToDelete.length > 0 && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-[#0B0F1A]/80 backdrop-blur-md">
           <div className="bg-[#111625] border border-red-500/20 p-8 md:p-10 rounded-[2.5rem] w-full max-w-md shadow-[0_0_50px_rgba(239,68,68,0.15)] animate-in zoom-in duration-300 relative overflow-hidden">
-            {/* Lueur rouge en arrière-plan */}
             <div className="absolute top-0 right-0 w-40 h-40 bg-red-600/10 rounded-full blur-[80px] pointer-events-none" />
             
             <div className="relative z-10 flex flex-col items-center text-center">
@@ -125,18 +161,22 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
               </div>
               
               <h3 className="text-2xl font-[1000] uppercase italic tracking-tighter text-white mb-2">
-                Suppression
+                Suppression {itemsToDelete.length > 1 ? 'Multiple' : ''}
               </h3>
               
               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest leading-relaxed mb-6">
                 Êtes-vous sûr de vouloir effacer <br/>
-                <span className="text-white bg-white/5 px-2 py-1 rounded-md mx-1 border border-white/10">"{productToDelete.name}"</span> <br/>
-                Cette action est irréversible.
+                {itemsToDelete.length === 1 ? (
+                   <span className="text-white bg-white/5 px-2 py-1 rounded-md mx-1 border border-white/10">"{itemsToDelete[0].name}"</span>
+                ) : (
+                   <span className="text-white bg-white/5 px-2 py-1 rounded-md mx-1 border border-white/10">ces {itemsToDelete.length} articles</span>
+                )}
+                <br/> Cette action est irréversible.
               </p>
 
               <div className="flex w-full gap-4 mt-4">
                 <button 
-                  onClick={() => setProductToDelete(null)}
+                  onClick={() => setItemsToDelete(null)}
                   disabled={isDeleting}
                   className="flex-1 py-4 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border border-white/5"
                 >
@@ -152,9 +192,8 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
               </div>
             </div>
             
-            {/* Bouton de fermeture en haut à droite */}
             <button 
-              onClick={() => setProductToDelete(null)} 
+              onClick={() => setItemsToDelete(null)} 
               className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"
             >
               <X className="w-5 h-5" />
@@ -163,7 +202,7 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
         </div>
       )}
 
-      {/* HEADER SECTION (Inchangé) */}
+      {/* HEADER SECTION */}
       <div className="bg-[#111625] border border-white/5 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden shadow-2xl flex flex-col gap-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
         
@@ -203,6 +242,21 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
             </div>
           </div>
         </div>
+
+        {/* 🟢 BARRE D'OUTILS "SÉLECTIONNER TOUT" */}
+        {displayedProducts.length > 0 && (
+          <div className="flex items-center justify-between pt-4 border-t border-white/5 relative z-10">
+            <button 
+              onClick={toggleSelectAll}
+              className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+            >
+              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedIds.length === displayedProducts.length && displayedProducts.length > 0 ? 'bg-blue-600 border-blue-600' : 'border-slate-600 bg-black/20'}`}>
+                {selectedIds.length === displayedProducts.length && displayedProducts.length > 0 && <Check size={12} className="text-white" />}
+              </div>
+              Tout Sélectionner
+            </button>
+          </div>
+        )}
       </div>
 
       {displayedProducts.length === 0 ? (
@@ -216,8 +270,19 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
           {displayedProducts.map((p: any) => (
-            <div key={p.id} className="bg-[#111625] border border-white/5 rounded-[2.5rem] overflow-hidden group hover:border-blue-500/30 transition-all duration-500 flex flex-col relative shadow-xl">
+            <div 
+              key={p.id} 
+              onClick={() => toggleSelection(p.id)} // Clic sur la carte sélectionne le produit
+              className={`bg-[#111625] border rounded-[2.5rem] overflow-hidden group transition-all duration-300 flex flex-col relative shadow-xl cursor-pointer ${selectedIds.includes(p.id) ? 'border-blue-500 shadow-[0_0_30px_rgba(37,99,235,0.2)]' : 'border-white/5 hover:border-blue-500/30'}`}
+            >
               
+              {/* 🟢 CHECKBOX SUR LA CARTE */}
+              <div className="absolute top-4 right-4 z-20">
+                <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all shadow-lg backdrop-blur-md ${selectedIds.includes(p.id) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-black/50 border-white/20 text-transparent group-hover:border-white/50'}`}>
+                  <Check size={14} className={selectedIds.includes(p.id) ? 'opacity-100' : 'opacity-0'} />
+                </div>
+              </div>
+
               {processingId === p.id && (
                 <div className="absolute inset-0 bg-[#111625]/80 backdrop-blur-sm z-50 flex items-center justify-center">
                   <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
@@ -227,7 +292,7 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
               <div className="relative h-56 overflow-hidden bg-slate-900 flex items-center justify-center border-b border-white/5">
                 <img 
                   src={p.image_url} 
-                  className="h-full w-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" 
+                  className={`h-full w-full object-cover transition-all duration-700 ${selectedIds.includes(p.id) ? 'opacity-50 scale-105' : 'opacity-80 group-hover:opacity-100 group-hover:scale-105'}`} 
                   alt={p.name} 
                 />
                 <div className="absolute top-4 left-4">
@@ -256,7 +321,7 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
                   <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">FCFA</span>
                 </div>
 
-                <div className="flex gap-3 pt-6 border-t border-white/5">
+                <div className="flex gap-3 pt-6 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
                   {filterStatus === 'pending' ? (
                     <>
                       <button 
@@ -275,15 +340,14 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
                     </>
                   ) : (
                     <>
-                      {/* 🔴 ÉTAPE 3 : LE BOUTON APPELLE HANDLEDELETECLICK */}
                       <button 
-                        onClick={() => handleDeleteClick(p.id, p.name)} 
-                        className="p-4 bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg"
+                        onClick={() => handleDeleteSingle(p.id, p.name)} 
+                        className="p-4 bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg z-10 relative"
                         title="Supprimer définitivement"
                       >
                         <Trash2 size={20}/>
                       </button>
-                      <button className="flex-1 py-4 bg-white/5 border border-white/5 text-slate-300 rounded-2xl font-[1000] text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95 flex items-center justify-center gap-2">
+                      <button className="flex-1 py-4 bg-white/5 border border-white/5 text-slate-300 rounded-2xl font-[1000] text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95 flex items-center justify-center gap-2 z-10 relative">
                         <Eye size={16} /> Détails
                       </button>
                     </>
@@ -292,6 +356,34 @@ export default function ProductsManager({ products, onApprove, onReject }: Produ
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 🟢 BARRE FLOTTANTE D'ACTION MULTIPLE */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-4 bg-[#111625]/90 backdrop-blur-xl border border-red-500/30 px-6 py-4 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom-10 duration-500">
+          <div className="flex items-center gap-3 pr-4 border-r border-white/10">
+            <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black">
+              {selectedIds.length}
+            </span>
+            <span className="text-[10px] font-black text-white uppercase tracking-widest hidden sm:block">
+              Sélectionné(s)
+            </span>
+          </div>
+          
+          <button 
+            onClick={() => setSelectedIds([])}
+            className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+          >
+            Annuler
+          </button>
+          
+          <button 
+            onClick={handleDeleteBulk}
+            className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)] active:scale-95"
+          >
+            <Trash2 size={14} /> Supprimer
+          </button>
         </div>
       )}
     </div>

@@ -24,12 +24,13 @@ interface OrderItem {
   quantity: number;
   total_price: number;
   vendor_status: string;
-  order: {
-    order_number: string;
+  orders: { // 🟢 Nom de la relation corrigé pour correspondre à Supabase par défaut
+    id: string;
     client_name: string;
     client_phone: string;
     delivery_city: string;
     delivery_address: string;
+    status: string;
   };
 }
 
@@ -43,17 +44,21 @@ export default function VendorOrders() {
   const fetchOrders = async () => {
     if (!user) return;
 
+    // 🟢 Requête optimisée pour récupérer les infos du client et le statut global
     const { data, error } = await supabase
       .from('order_items')
       .select(`
         id, created_at, product_name, quantity, total_price, vendor_status,
-        order:orders (order_number, client_name, client_phone, delivery_city, delivery_address)
+        orders (id, client_name, client_phone, delivery_city, delivery_address, status)
       `)
       .eq('vendor_id', user.id)
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setOrders(data as unknown as OrderItem[]);
+    if (error) {
+      console.error("Erreur chargement commandes:", error);
+    } else if (data) {
+      // @ts-ignore - Supabase renvoie orders comme un objet simple ici
+      setOrders(data as OrderItem[]);
     }
     setLoading(false);
   };
@@ -61,10 +66,14 @@ export default function VendorOrders() {
   useEffect(() => {
     fetchOrders();
 
+    // 🟢 TEMPS RÉEL DOUBLE : On écoute les produits ET la commande globale
     const subscription = supabase
       .channel('vendor_orders_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: `vendor_id=eq.${user?.id}` }, 
         () => fetchOrders()
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, 
+        () => fetchOrders() // Si le statut de livraison global change, on rafraîchit
       )
       .subscribe();
 
@@ -131,11 +140,11 @@ export default function VendorOrders() {
     }
   };
 
-  const filteredOrders = orders.filter(order => 
-    order.order?.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.order?.client_phone?.includes(searchTerm) ||
-    order.order?.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.product_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredOrders = orders.filter(item => 
+    item.orders?.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.orders?.client_phone?.includes(searchTerm) ||
+    item.orders?.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.product_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -143,7 +152,6 @@ export default function VendorOrders() {
       
       {/* HEADER SECTION (Style Vendeur) */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm w-full relative overflow-hidden">
-        {/* Décoration subtile */}
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
         
         <div className="relative z-10">
@@ -220,7 +228,7 @@ export default function VendorOrders() {
                   <td className="px-6 py-5">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className="text-[10px] font-black text-white bg-[#111625] px-2.5 py-1 rounded-md shadow-sm border border-slate-800">
-                        {item.order?.order_number || 'SA24-ERR'}
+                        #{item.orders?.id?.substring(0, 8) || 'ERR'}
                       </span>
                       <span className="flex items-center gap-1.5 text-slate-400 text-[9px] font-bold uppercase bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
                         <Clock className="w-3 h-3" />
@@ -242,19 +250,21 @@ export default function VendorOrders() {
                         <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
                           <Phone className="w-2.5 h-2.5 text-emerald-600" />
                         </div>
-                        <span className="text-[10px] md:text-xs font-black uppercase tracking-tight">{item.order?.client_name} - {item.order?.client_phone}</span>
+                        <span className="text-[10px] md:text-xs font-black uppercase tracking-tight">
+                          {item.orders?.client_name || 'Client'} - {item.orders?.client_phone || 'Non renseigné'}
+                        </span>
                       </div>
                       <div className="flex items-start gap-2.5 text-slate-500 pl-1 max-w-[220px]">
                         <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                         <span className="text-[9px] md:text-[10px] font-bold uppercase leading-relaxed line-clamp-2">
-                          <strong className="text-slate-700">{item.order?.delivery_city}</strong> <br/>
-                          {item.order?.delivery_address}
+                          <strong className="text-slate-700">{item.orders?.delivery_city || 'Ville'}</strong> <br/>
+                          {item.orders?.delivery_address || 'Adresse non renseignée'}
                         </span>
                       </div>
                     </div>
                   </td>
 
-                  {/* STATUT (Bage intelligent) */}
+                  {/* STATUT (Badge intelligent) */}
                   <td className="px-6 py-5">
                     {getStatusBadge(item.vendor_status)}
                   </td>

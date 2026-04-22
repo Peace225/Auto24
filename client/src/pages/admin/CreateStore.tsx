@@ -93,6 +93,7 @@ export default function CreateStore({ setActiveTab }: CreateStoreProps) {
         id: newStoreId,
         role: 'vendor',
         is_verified: true,
+        is_featured: true, // 🟢 AJOUT ICI : Rend la boutique visible automatiquement dans FeaturedStores
         store_name: formData.shopName,
         full_name: formData.ownerName,
         email: formData.email,
@@ -104,7 +105,7 @@ export default function CreateStore({ setActiveTab }: CreateStoreProps) {
       if (error) throw error;
 
       setCreatedStoreId(newStoreId);
-      toast.success("Boutique officielle créée avec succès !");
+      toast.success("Boutique officielle créée et mise à la Une avec succès !");
       setStep('success');
     } catch (error: any) {
       console.error(error);
@@ -126,17 +127,16 @@ export default function CreateStore({ setActiveTab }: CreateStoreProps) {
             <CheckCircle2 className="w-12 h-12 text-emerald-500" />
           </div>
           <h2 className="text-3xl md:text-4xl font-[1000] text-white uppercase italic tracking-tighter mb-4">Boutique Opérationnelle</h2>
-          <p className="text-[10px] font-black text-emerald-500/80 uppercase tracking-[0.2em] mb-12">La boutique a été insérée dans le catalogue</p>
+          <p className="text-[10px] font-black text-emerald-500/80 uppercase tracking-[0.2em] mb-12">La boutique a été insérée dans le catalogue et mise à la Une</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6">
             <button onClick={resetFlow} className="w-full sm:w-auto px-8 py-4 rounded-2xl border border-white/10 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
               Nouvelle Boutique
             </button>
             
-            {/* 🟢 NOUVEAU BOUTON : Redirige vers la gestion des produits */}
             <button 
               onClick={() => {
                 if (setActiveTab) {
-                  setActiveTab('products'); // 👈 Redirige vers ton onglet de gestion des produits
+                  setActiveTab('products');
                 } else {
                   toast("Redirection vers les produits...");
                 }

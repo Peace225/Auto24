@@ -29,7 +29,8 @@ export default function SubHeaderSearch({ onSearch }: SubHeaderSearchProps) {
   };
 
   return (
-    <div className="w-full bg-[#1e3a8a] border-b border-blue-800 sticky top-16 z-[80] shadow-lg">
+    <div className="w-full bg-[#1e3a8a] border-b border-blue-800 sticky top-16 sm:top-20 z-[9998] shadow-lg">
+      {/* 🟢 Le z-[9998] est appliqué à la div parente pour rester sous la Navbar mais au-dessus du Dashboard */}
       <div className="max-w-7xl mx-auto px-4 py-3 md:py-5">
         
         {/* LIGNE 1 : BARRE DE RECHERCHE + BOUTONS */}
@@ -76,7 +77,7 @@ export default function SubHeaderSearch({ onSearch }: SubHeaderSearchProps) {
           </div>
         </form>
 
-        {/* 🟢 LIGNE 2 : NOUVEAU DESIGN DU BOUTON VENDRE (Mobile Uniquement) */}
+        {/* LIGNE 2 : NOUVEAU DESIGN DU BOUTON VENDRE (Mobile Uniquement) */}
         <div className="mt-4 flex md:hidden">
           <Link 
             to="/become-vendor"
