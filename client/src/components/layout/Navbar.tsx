@@ -22,8 +22,10 @@ export default function Navbar() {
   const { user, setUser } = useAuthStore(); 
   
   const totalItems = useCartStore((state) => state.getTotalItems());
+  // 🟢 AJOUT : On récupère openCart depuis le store
+  const openCart = useCartStore((state) => state.openCart);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
 
@@ -59,8 +61,11 @@ export default function Navbar() {
         <div className="flex justify-between h-16 sm:h-20 items-center">
           
           <div className="flex-shrink-0 flex items-center gap-3">
-            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="xl:hidden p-2 text-slate-600 hover:text-blue-600 transition-colors z-50">
-              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+              className="xl:hidden p-2 text-slate-600 hover:text-blue-600 transition-transform active:scale-90 z-50"
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6 animate-in spin-in-90 duration-300" /> : <Menu className="h-6 w-6 animate-in spin-in-[-90deg] duration-300" />}
             </button>
             <Link to="/" className="font-[1000] text-xl sm:text-3xl text-blue-700 tracking-tighter uppercase italic">
               SpaceAuto<span className="text-orange-500">24</span>
@@ -84,6 +89,7 @@ export default function Navbar() {
             </div>
             <Link to="/huiles" className="text-slate-700 hover:text-blue-600 font-black text-[11px] uppercase tracking-widest">Huile Moteur</Link>
             <Link to="/outillage" className="text-slate-700 hover:text-blue-600 font-black text-[11px] uppercase tracking-widest">Outillage</Link>
+            <Link to="/batteries" className="text-slate-700 hover:text-blue-600 font-black text-[11px] uppercase tracking-widest">Batteries</Link>
             {!user && (
               <Link to="/become-vendor" className="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 font-[1000] text-[9px] uppercase tracking-widest px-6 py-3 rounded-full transition-all border border-blue-100">
                 Vendre une pièce
@@ -97,10 +103,14 @@ export default function Navbar() {
             </Link>
 
             <div className="relative">
-              <button onClick={() => setIsCartOpen(!isCartOpen)} className="p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-all relative">
+              {/* 🟢 CORRECTION DU PANIER : Utilisation d'un button et de la fonction openCart */}
+              <button 
+                onClick={openCart} 
+                className="flex items-center justify-center p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-all relative active:scale-95"
+              >
                 <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6" />
                 {totalItems > 0 && (
-                  <span className="absolute top-0 right-0 h-4 w-4 sm:h-5 sm:w-5 bg-orange-500 text-white text-[9px] sm:text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">
+                  <span className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 bg-orange-500 text-white text-[9px] sm:text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-in zoom-in duration-300">
                     {totalItems}
                   </span>
                 )}
@@ -172,15 +182,26 @@ export default function Navbar() {
         </div>
       </div>
 
-      <div className={`xl:hidden fixed inset-0 top-16 bg-white transition-all duration-300 overflow-y-auto pb-24 ${isMobileMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-4'}`}>
-        <div className="p-6 space-y-2">
+      {/* OVERLAY DU MENU MOBILE */}
+      <div 
+        className={`xl:hidden fixed inset-0 top-[64px] sm:top-[80px] bg-slate-900/40 backdrop-blur-sm z-40 transition-all duration-500 ease-in-out ${isMobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} 
+        onClick={closeMobileMenu}
+      ></div>
+
+      {/* CONTENEUR DU MENU MOBILE ANIMÉ */}
+      <div className={`xl:hidden fixed inset-x-0 top-[64px] sm:top-[80px] bg-white/95 backdrop-blur-md z-50 overflow-y-auto pb-24 shadow-[0_20px_40px_rgba(0,0,0,0.1)] rounded-b-[2.5rem] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] origin-top ${isMobileMenuOpen ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-95 pointer-events-none'}`}>
+        
+        <div className={`p-6 space-y-2 transition-all duration-700 delay-100 ease-out transform ${isMobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
           
           <div className="border-b border-slate-100 pb-2">
             <button 
               onClick={() => setActiveAccordion(activeAccordion === 'catalog' ? null : 'catalog')}
-              className="w-full py-4 flex justify-between items-center text-slate-900 font-black uppercase text-sm tracking-widest"
+              className="w-full py-4 flex justify-between items-center text-slate-900 font-black uppercase text-sm tracking-widest group"
             >
-              Catalogue <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${activeAccordion === 'catalog' ? 'rotate-180' : ''}`} />
+              Catalogue 
+              <span className="p-1 bg-slate-50 rounded-full group-hover:bg-blue-50 transition-colors">
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${activeAccordion === 'catalog' ? 'rotate-180 text-blue-600' : ''}`} />
+              </span>
             </button>
             
             <div className={`overflow-hidden transition-all duration-500 ease-in-out ${activeAccordion === 'catalog' ? 'max-h-[800px] opacity-100 mb-4' : 'max-h-0 opacity-0'}`}>
@@ -199,29 +220,19 @@ export default function Navbar() {
             </div>
           </div>
 
-          <Link to="/huiles" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest">Huile Moteur</Link>
-          <Link to="/outillage" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest">Outillage</Link>
-          <Link to="/garages" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest">Garages Partenaires</Link>
+          <Link to="/huiles" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest hover:text-blue-600 transition-colors">Huile Moteur</Link>
+          <Link to="/outillage" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest hover:text-blue-600 transition-colors">Outillage</Link>
+          <Link to="/batteries" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest hover:text-blue-600 transition-colors">Batteries</Link>
+          <Link to="/garages" onClick={closeMobileMenu} className="block py-4 border-b border-slate-100 text-slate-900 font-black uppercase text-sm tracking-widest hover:text-blue-600 transition-colors">Garages Partenaires</Link>
           
           <div className="pt-8 space-y-4">
-            {user ? (
-              <>
-                <Link to={getDashboardPath()} onClick={closeMobileMenu} className={`flex items-center justify-center gap-3 w-full p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] shadow-lg
-                  ${user.role === 'admin' ? 'bg-[#0B0F19] text-amber-500 shadow-amber-500/20' 
-                  : user.role === 'vendor' ? 'bg-[#05070A] text-amber-500 shadow-amber-500/20' 
-                  : 'bg-blue-600 text-white shadow-blue-200'}`}>
-                  Mon Tableau de Bord
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link to="/login" onClick={closeMobileMenu} className="flex items-center justify-center w-full p-5 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] shadow-lg shadow-blue-200">
-                  Se connecter
-                </Link>
-                <Link to="/become-vendor" onClick={closeMobileMenu} className="flex items-center justify-center w-full p-5 border-2 border-blue-100 text-blue-600 bg-blue-50 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em]">
-                  Devenir Vendeur
-                </Link>
-              </>
+            {user && (
+              <Link to={getDashboardPath()} onClick={closeMobileMenu} className={`flex items-center justify-center gap-3 w-full p-5 rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.3em] shadow-lg hover:scale-[1.02] transition-transform
+                ${user.role === 'admin' ? 'bg-[#0B0F19] text-amber-500 shadow-amber-500/20' 
+                : user.role === 'vendor' ? 'bg-[#05070A] text-amber-500 shadow-amber-500/20' 
+                : 'bg-blue-600 text-white shadow-blue-600/30'}`}>
+                Mon Tableau de Bord
+              </Link>
             )}
           </div>
 

@@ -1,57 +1,56 @@
 import { useState, useEffect } from 'react';
 import { 
-  Loader2, ArrowRight, PackagePlus,
-  Package, DollarSign, Tag, AlignLeft, Save, UploadCloud, X, Store
+  Loader2, ArrowRight, PackagePlus, Zap, Hash, Car, Calendar,
+  Package, DollarSign, Tag, AlignLeft, UploadCloud, X, Store, Layers
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '../../../lib/supabase'; // Ajuste le chemin selon ton architecture
+import { supabase } from '../../../lib/supabase';
 
 export default function AddProductAdmin() {
   const [isLoading, setIsLoading] = useState(false);
-  
-  // --- DONNÉES DYNAMIQUES DEPUIS SUPABASE ---
   const [vendors, setVendors] = useState<{id: string, store_name: string}[]>([]);
   const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
 
-  // --- STATE PRODUIT ---
   const [productData, setProductData] = useState({
-    vendorId: '',   // 🟢 Pour choisir à quelle boutique appartient la pièce
+    vendorId: '',
     name: '',
     price: '',
     categoryId: '', 
     stock: '1',
-    description: ''
+    description: '',
+    // 🟢 Nouveaux champs d'identification
+    reference: '',
+    brand: '',
+    model: '',
+    phase: '',
+    year: '',
+    // Spécifiques Batteries
+    capacity: '',
+    cca: '',
+    batteryType: 'Standard'
   });
   
-  // --- ÉTATS IMAGE ---
   const [productImage, setProductImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // 🟢 CHARGEMENT DES BOUTIQUES ET CATÉGORIES AU DÉMARRAGE
+  const isBatteryCategory = categories.find(c => c.id === productData.categoryId)?.name.toLowerCase().includes('batterie');
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // On charge les vendeurs et les catégories en même temps pour aller plus vite
         const [vendorsResponse, categoriesResponse] = await Promise.all([
           supabase.from('profiles').select('id, store_name').eq('role', 'vendor'),
           supabase.from('categories').select('id, name')
         ]);
-
-        if (vendorsResponse.error) throw vendorsResponse.error;
-        if (categoriesResponse.error) throw categoriesResponse.error;
-
         if (vendorsResponse.data) setVendors(vendorsResponse.data);
         if (categoriesResponse.data) setCategories(categoriesResponse.data);
-
       } catch (err) {
-        console.error("Erreur de chargement des données", err);
-        toast.error("Impossible de charger les boutiques ou catégories.");
+        toast.error("Erreur de chargement des paramètres.");
       }
     };
     fetchData();
   }, []);
 
-  // --- HANDLERS ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setProductData({ ...productData, [e.target.name]: e.target.value });
   };
@@ -64,75 +63,68 @@ export default function AddProductAdmin() {
     }
   };
 
-  const removeImage = () => {
+  const resetForm = () => {
+    setProductData({ 
+      vendorId: '', name: '', price: '', categoryId: '', stock: '1', 
+      description: '', reference: '', brand: '', model: '', 
+      phase: '', year: '', capacity: '', cca: '', batteryType: 'Standard' 
+    });
     setProductImage(null);
     setImagePreview(null);
   };
 
-  const resetForm = () => {
-    setProductData({ vendorId: '', name: '', price: '', categoryId: '', stock: '1', description: '' });
-    removeImage();
-  };
-
-  // ==========================================
-  // 🟢 LOGIQUE D'AJOUT DU PRODUIT
-  // ==========================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!productImage) {
-      toast.error("Veuillez ajouter une photo de la pièce.");
-      return;
-    }
-    if (!productData.vendorId) {
-      toast.error("Veuillez sélectionner la boutique vendeuse.");
-      return;
-    }
-    if (!productData.categoryId) {
-      toast.error("Veuillez sélectionner une catégorie.");
+    if (!productImage || !productData.vendorId || !productData.categoryId) {
+      toast.error("Champs obligatoires manquants.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // 1. Upload de l'image
-      const fileExt = productImage.name.split('.').pop();
-      const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `products/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('images') 
-        .upload(filePath, productImage);
-
+      const fileName = `prod_${Date.now()}.${productImage.name.split('.').pop()}`;
+      const { error: uploadError } = await supabase.storage.from('images').upload(`products/${fileName}`, productImage);
       if (uploadError) throw uploadError;
 
-      // 2. Récupération URL Publique
-      const { data: publicUrlData } = supabase.storage
-        .from('images')
-        .getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`products/${fileName}`);
 
-      // 3. Insertion Produit dans la base
-      const { error: productError } = await supabase.from('products').insert({
-        vendor_id: productData.vendorId, // L'ID de la boutique choisie
-        category_id: productData.categoryId,
-        name: productData.name,
-        price: parseFloat(productData.price),
-        stock: parseInt(productData.stock),
-        description: productData.description,
-        image_url: publicUrlData.publicUrl,
-        status: 'approved', // Approuvé par défaut car créé par l'Admin
-        is_boosted: true    // Boosté pour apparaître direct en Accueil
-      });
+      if (isBatteryCategory) {
+        const { error } = await supabase.from('batteries').insert({
+          name: productData.name,
+          brand: productData.brand || 'Générique',
+          price: parseInt(productData.price),
+          capacity: productData.capacity,
+          cca: productData.cca,
+          type: productData.batteryType,
+          image_url: publicUrl,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('products').insert({
+          vendor_id: productData.vendorId,
+          category_id: productData.categoryId,
+          name: productData.name,
+          price: parseFloat(productData.price),
+          stock: parseInt(productData.stock),
+          description: productData.description,
+          image_url: publicUrl,
+          // 🟢 Insertion des nouveaux champs techniques
+          reference: productData.reference,
+          brand: productData.brand,
+          model: productData.model,
+          phase: productData.phase,
+          year: productData.year,
+          status: 'approved',
+          is_boosted: true
+        });
+        if (error) throw error;
+      }
 
-      if (productError) throw productError;
-
-      toast.success("Pièce ajoutée au catalogue avec succès !");
+      toast.success("Publication réussie !");
       resetForm();
-
     } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "Erreur lors de l'ajout du produit.");
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -140,151 +132,132 @@ export default function AddProductAdmin() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 max-w-5xl mx-auto">
-      
-      {/* 🔴 HEADER */}
-      <div className="bg-[#111625] border border-white/5 rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px]" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <PackagePlus className="w-8 h-8 text-blue-500" />
-            <h2 className="text-2xl md:text-3xl font-[1000] text-white uppercase italic tracking-tighter">
-              Ajouter une pièce
-            </h2>
-          </div>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest md:ml-11">
-            Insertion directe dans le catalogue
-          </p>
+      <div className="bg-[#111625] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
+        <div className="flex items-center gap-3 mb-2">
+          <PackagePlus className="w-8 h-8 text-blue-500" />
+          <h2 className="text-2xl font-[1000] text-white uppercase italic tracking-tighter">Gestion Inventaire Admin</h2>
         </div>
       </div>
 
-      {/* 🔴 FORMULAIRE PRODUIT */}
-      <div className="bg-[#111625] border border-white/5 rounded-[2.5rem] p-6 md:p-12 shadow-2xl relative">
-        <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="bg-[#111625] border border-white/5 rounded-[2.5rem] p-6 md:p-12 shadow-2xl">
+        <form onSubmit={handleSubmit} className="space-y-10">
           
-          {/* SÉLECTION DE LA BOUTIQUE (LE PLUS IMPORTANT POUR L'ADMIN) */}
-          <div className="p-6 bg-blue-900/10 border border-blue-500/20 rounded-2xl mb-8">
-            <label className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-3 block">
-              Assigner cette pièce à la boutique :
-            </label>
-            <div className="relative group">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-xl" />
-              <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500" />
-              <select 
-                name="vendorId" 
-                value={productData.vendorId} 
-                onChange={handleChange} 
-                required
-                className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-xl font-bold text-white outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all text-sm appearance-none"
-              >
-                <option value="" className="bg-slate-900">-- Sélectionner un vendeur partenaire --</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id} className="bg-slate-900">
-                    {vendor.store_name}
-                  </option>
-                ))}
+          {/* Section Source */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/5 rounded-3xl border border-white/5">
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-blue-400 uppercase tracking-widest ml-2">Propriétaire du stock</label>
+              <select name="vendorId" value={productData.vendorId} onChange={handleChange} required className="w-full px-6 py-4 bg-slate-900 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 transition-all text-xs appearance-none">
+                <option value="">Sélectionner un vendeur</option>
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.store_name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-blue-400 uppercase tracking-widest ml-2">Rayon catalogue</label>
+              <select name="categoryId" value={productData.categoryId} onChange={handleChange} required className="w-full px-6 py-4 bg-slate-900 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 transition-all text-xs appearance-none">
+                <option value="">Choisir une catégorie</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           </div>
 
-          {/* ZONE D'UPLOAD D'IMAGE */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center px-2">
-               <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Photo du Produit</label>
-               {imagePreview && (
-                 <button type="button" onClick={removeImage} className="text-[8px] font-black text-red-500 uppercase tracking-widest hover:underline flex items-center gap-1">
-                   <X className="w-3 h-3" /> Retirer l'image
-                 </button>
-               )}
+          {/* Identification de la pièce */}
+          <div className="space-y-6">
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-l-2 border-blue-500 pl-4">Identification Technique</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Désignation Commerciale</label>
+                <div className="relative">
+                  <Package className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input type="text" name="name" required value={productData.name} onChange={handleChange} className="w-full pl-14 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-xs" placeholder="Ex: Turbo Diesel Haute Pression" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Référence Constructeur</label>
+                <div className="relative">
+                  <Hash className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input type="text" name="reference" required value={productData.reference} onChange={handleChange} className="w-full pl-14 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-xs uppercase" placeholder="REF-0000" />
+                </div>
+              </div>
             </div>
-            
-            <div className="relative w-full h-64 rounded-[2rem] border-2 border-dashed border-white/10 bg-white/5 hover:border-blue-500/50 hover:bg-white/10 transition-all overflow-hidden flex flex-col items-center justify-center group">
-              <input type="file" accept="image/*" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" title="Choisir une image" />
-              {imagePreview ? (
-                <div className="absolute inset-0 w-full h-full bg-black/40 backdrop-blur-sm z-10 flex items-center justify-center p-4">
-                   <img src={imagePreview} alt="Preview" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in zoom-in duration-300" />
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Marque</label>
+                <input type="text" name="brand" required value={productData.brand} onChange={handleChange} className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-xs" placeholder="BOSCH, VALEO..." />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Modèle Véhicule</label>
+                <div className="relative">
+                  <Car className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input type="text" name="model" required value={productData.model} onChange={handleChange} className="w-full pl-10 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-xs" placeholder="A3, Golf 7..." />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Phase (Opt.)</label>
+                <div className="relative">
+                  <Layers className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input type="text" name="phase" value={productData.phase} onChange={handleChange} className="w-full pl-10 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-xs" placeholder="Phase 2" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Année</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input type="text" name="year" required value={productData.year} onChange={handleChange} className="w-full pl-10 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-xs" placeholder="2018" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Media & Specs */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div className="space-y-4">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Visuel Haute Définition</label>
+              <div className="relative h-72 rounded-[2.5rem] border-2 border-dashed border-white/10 bg-white/5 flex flex-col items-center justify-center overflow-hidden group hover:border-blue-500/30 transition-all">
+                <input type="file" accept="image/*" onChange={handleImageChange} className="absolute inset-0 opacity-0 cursor-pointer z-20" />
+                {imagePreview ? (
+                  <img src={imagePreview} className="absolute inset-0 w-full h-full object-contain p-4" alt="Preview" />
+                ) : (
+                  <UploadCloud className="w-12 h-12 text-slate-600 group-hover:text-blue-500 transition-colors" />
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Prix de vente (CFA)</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                    <input type="number" name="price" required value={productData.price} onChange={handleChange} className="w-full pl-10 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-white outline-none focus:border-blue-500/50 text-sm" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Stock dispo</label>
+                  <input type="number" name="stock" required value={productData.stock} onChange={handleChange} className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 text-sm" />
+                </div>
+              </div>
+
+              {isBatteryCategory ? (
+                <div className="p-6 bg-blue-600/5 border border-blue-500/20 rounded-3xl space-y-4 animate-in zoom-in duration-300">
+                   <div className="flex items-center gap-2 mb-2"><Zap className="w-4 h-4 text-orange-500" /><span className="text-[9px] font-black text-white uppercase italic">Spécifications Batteries</span></div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <input type="text" name="capacity" value={productData.capacity} onChange={handleChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" placeholder="Capacité (Ah)" />
+                      <input type="text" name="cca" value={productData.cca} onChange={handleChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" placeholder="Démarrage (CCA)" />
+                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-4 z-10 pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity">
-                  <div className="p-5 rounded-full bg-white/5 group-hover:bg-blue-500/20 transition-colors shadow-inner">
-                    <UploadCloud className="w-10 h-10 text-slate-400 group-hover:text-blue-400" />
-                  </div>
-                  <div className="text-center space-y-1">
-                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">Cliquez ou glissez la photo de la pièce</p>
-                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Formats supportés: JPG, PNG, WEBP (Max 5MB)</p>
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Description / Notes</label>
+                  <textarea name="description" rows={5} value={productData.description} onChange={handleChange} className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-3xl font-bold text-white outline-none focus:border-blue-500/50 text-xs resize-none" placeholder="Compatibilité moteur, état..." />
                 </div>
               )}
             </div>
           </div>
 
-          {/* DÉTAILS DU PRODUIT */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Nom de la pièce</label>
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-2xl" />
-                  <Package className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-                  <input type="text" name="name" required value={productData.name} onChange={handleChange} className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all text-xs" placeholder="Ex: Amortisseur Avant BMW" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Prix (FCFA)</label>
-                  <div className="relative group">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-2xl" />
-                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-                    <input type="number" name="price" required value={productData.price} onChange={handleChange} className="w-full pl-10 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all text-xs" placeholder="0" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Stock</label>
-                  <div className="relative group">
-                    <input type="number" name="stock" required value={productData.stock} onChange={handleChange} className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all text-xs" min="1" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Catégorie</label>
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-2xl" />
-                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-                  <select 
-                    name="categoryId" 
-                    value={productData.categoryId} 
-                    onChange={handleChange} 
-                    required
-                    className="w-full pl-10 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all text-xs appearance-none"
-                  >
-                    <option value="" className="bg-slate-900">Choisir un rayon</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id} className="bg-slate-900">{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Description</label>
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-tl-2xl rounded-bl-2xl" />
-                  <AlignLeft className="absolute left-4 top-5 w-4 h-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-                  <textarea name="description" rows={3} required value={productData.description} onChange={handleChange} className="w-full pl-10 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all text-xs resize-none" placeholder="État de la pièce, compatibilité, etc..." />
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="pt-8 border-t border-white/5 flex justify-end">
-            <button type="submit" disabled={isLoading} className="w-full sm:w-auto group relative overflow-hidden px-12 py-5 rounded-2xl bg-blue-600 text-white font-[1000] text-[10px] uppercase tracking-[0.3em] transition-all active:scale-95 shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_40px_rgba(37,99,235,0.5)] disabled:opacity-50">
-              <div className="absolute inset-0 w-full h-full bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <span className="relative z-10 flex items-center justify-center gap-3">
-                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Publier le produit <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
-              </span>
+            <button type="submit" disabled={isLoading} className="group relative px-14 py-6 rounded-2xl bg-blue-600 text-white font-[1000] text-[11px] uppercase tracking-[0.3em] transition-all active:scale-95 shadow-[0_10px_30px_rgba(37,99,235,0.3)] disabled:opacity-50">
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Publier l'article"}
             </button>
           </div>
         </form>

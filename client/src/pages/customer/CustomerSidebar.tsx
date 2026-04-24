@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { 
   Package, Car, Heart, 
   Settings, LogOut, Wrench, ShieldCheck,
-  HeadphonesIcon
+  HeadphonesIcon, ShoppingCart
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { supabase } from '../../lib/supabase';
@@ -10,7 +10,7 @@ import { toast } from 'react-hot-toast';
 
 interface CustomerSidebarProps {
   activeTab: string;
-  setActiveTab: (tab: 'orders' | 'garage' | 'appointments' | 'wishlist' | 'settings') => void;
+  setActiveTab: (tab: 'orders' | 'garage' | 'appointments' | 'wishlist' | 'settings' | 'shop') => void;
 }
 
 export default function CustomerSidebar({ activeTab, setActiveTab }: CustomerSidebarProps) {
@@ -26,107 +26,149 @@ export default function CustomerSidebar({ activeTab, setActiveTab }: CustomerSid
     }
   };
 
+  // 🟢 Ajout de "shortName" pour l'affichage optimisé sur Mobile
   const navItems = [
-    { id: 'orders', name: 'Mes Commandes', icon: Package },
-    { id: 'garage', name: 'Mon Garage', icon: Car },
-    { id: 'appointments', name: 'Rendez-vous', icon: Wrench },
-    { id: 'wishlist', name: 'Favoris', icon: Heart },
-    { id: 'settings', name: 'Paramètres', icon: Settings },
+    { id: 'shop', name: 'Boutique Pièces', shortName: 'Boutique', icon: ShoppingCart },
+    { id: 'orders', name: 'Mes Commandes', shortName: 'Commandes', icon: Package },
+    { id: 'garage', name: 'Mon Garage', shortName: 'Garage', icon: Car },
+    { id: 'appointments', name: 'Mes Rendez-vous', shortName: 'RDV', icon: Wrench },
+    { id: 'wishlist', name: 'Favoris', shortName: 'Favoris', icon: Heart },
+    { id: 'settings', name: 'Paramètres', shortName: 'Profil', icon: Settings },
   ];
 
   return (
-    <aside className="w-72 bg-white border-r border-slate-100 h-screen sticky top-0 flex flex-col pt-8 pb-6 hidden lg:flex shrink-0 z-40">
-      
-      {/* LOGO */}
-      <div className="px-8 mb-10">
-        <Link to="/" className="text-2xl font-[1000] text-blue-700 tracking-tighter uppercase italic hover:opacity-80 transition-opacity">
-          SpaceAuto<span className="text-orange-500">24</span>
-        </Link>
-      </div>
+    <>
+      {/* ========================================================= */}
+      {/* 1. SIDEBAR DESKTOP (Cachée sur mobile via "hidden lg:flex") */}
+      {/* ========================================================= */}
+      <aside className="w-72 bg-white border-r border-slate-100 h-screen sticky top-0 hidden lg:flex flex-col pt-8 pb-6 shrink-0 z-40">
+        
+        {/* LOGO */}
+        <div className="px-8 mb-10">
+          <Link to="/" className="text-2xl font-[1000] text-slate-900 tracking-tighter uppercase italic hover:opacity-80 transition-opacity">
+            SpaceAuto<span className="text-blue-600">24</span>
+          </Link>
+          <div className="h-1 w-12 bg-blue-600 mt-1 rounded-full"></div>
+        </div>
 
-      {/* USER MINI-PROFILE VIP */}
-      <div className="px-8 mb-10">
-        <div className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-          <div className="w-12 h-12 rounded-[1rem] bg-blue-600 text-white flex items-center justify-center font-black shadow-inner overflow-hidden border-2 border-white shrink-0">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt="Profil" className="w-full h-full object-cover" />
-            ) : (
-              user?.full_name?.charAt(0) || 'C'
-            )}
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-[11px] font-black text-slate-900 uppercase truncate">{user?.full_name || 'Client Privilège'}</p>
-            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mt-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-500" /> Profil Vérifié
-            </p>
+        {/* USER PROFILE */}
+        <div className="px-8 mb-10">
+          <div className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-[2rem] hover:bg-slate-100 transition-colors cursor-default">
+            <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black shadow-lg overflow-hidden border-2 border-white shrink-0">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="Profil" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-blue-400 italic">{(user?.full_name || 'C').charAt(0)}</span>
+              )}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-[11px] font-[1000] text-slate-900 uppercase italic truncate tracking-tight">
+                {user?.full_name || 'Client Privilège'}
+              </p>
+              <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 mt-1">
+                <ShieldCheck className="w-3 h-3" /> Membre Vérifié
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* NAVIGATION LINKS */}
-      <nav className="flex-1 px-6 space-y-3">
+        {/* NAVIGATION LINKS DESKTOP */}
+        <nav className="flex-1 px-6 space-y-2">
+          <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] mb-4 ml-4">Menu Principal</p>
+          
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button 
+                key={item.id} 
+                onClick={() => setActiveTab(item.id as any)}
+                className={`relative w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group overflow-hidden
+                  ${isActive 
+                    ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 translate-x-1' 
+                    : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'}`}
+              >
+                <item.icon className={`w-5 h-5 relative z-10 transition-transform duration-500 
+                  ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110 group-hover:text-blue-600'}`} 
+                />
+                
+                <span className={`text-[10px] font-black uppercase tracking-widest relative z-10 transition-colors
+                  ${isActive ? 'text-white' : 'group-hover:text-slate-900'}`}>
+                  {item.name}
+                </span>
+
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-600 rounded-r-full" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* WIDGET CONCIERGERIE */}
+        <div className="px-6 mt-auto mb-6">
+          <div className="p-6 bg-slate-900 rounded-[2.5rem] relative overflow-hidden group shadow-2xl shadow-blue-900/20">
+             <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-125 transition-transform duration-700">
+               <HeadphonesIcon className="w-24 h-24 text-white" />
+             </div>
+             
+             <div className="relative z-10 text-white">
+               <div className="flex items-center gap-2 mb-3">
+                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                 <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Support 24/7</h4>
+               </div>
+               <p className="text-[11px] font-[1000] italic uppercase leading-none mb-4">
+                 Besoin d'une <span className="text-blue-400">expertise ?</span>
+               </p>
+               <button className="w-full py-3 bg-blue-600 hover:bg-white hover:text-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">
+                 Contacter un expert
+               </button>
+             </div>
+          </div>
+        </div>
+
+        {/* LOGOUT */}
+        <div className="px-6 border-t border-slate-50 pt-6">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-3 w-full py-4 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all group font-black text-[10px] uppercase tracking-widest"
+          >
+            <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Déconnexion
+          </button>
+        </div>
+      </aside>
+
+
+      {/* ============================================================== */}
+      {/* 2. BOTTOM BAR MOBILE (Cachée sur desktop via "lg:hidden")      */}
+      {/* ============================================================== */}
+      <nav className="lg:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-xl border-t border-slate-100 z-50 px-2 py-3 flex justify-around items-center shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-safe">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
-            <button 
-              key={item.id} 
+            <button
+              key={item.id}
               onClick={() => setActiveTab(item.id as any)}
-              className={`relative w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group overflow-hidden
-                ${isActive 
-                  ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 scale-[1.02]' 
-                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'}`}
+              className="flex flex-col items-center justify-center w-full gap-1.5 relative p-1 transition-all"
             >
-              {/* Effet de brillance subtil au hover */}
-              {!isActive && <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />}
-              
-              <item.icon className={`w-5 h-5 relative z-10 transition-transform duration-500 
-                ${isActive ? 'text-orange-500 scale-110' : 'group-hover:scale-110 group-hover:text-blue-600'}`} 
-              />
-              
-              <span className={`text-[10px] font-black uppercase tracking-widest relative z-10 transition-colors
-                ${isActive ? 'text-white' : 'group-hover:text-slate-900'}`}>
-                {item.name}
-              </span>
-
-              {/* Point indicateur orange si actif */}
+              {/* Point indicateur discret au-dessus de l'icône */}
               {isActive && (
-                <div className="absolute right-4 w-1.5 h-1.5 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.8)] animate-pulse" />
+                <span className="absolute -top-3 w-1 h-1 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
               )}
+
+              <item.icon className={`w-5 h-5 transition-all duration-300 ${
+                isActive ? 'text-blue-600 scale-110 -translate-y-1' : 'text-slate-400'
+              }`} />
+
+              <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${
+                isActive ? 'text-slate-900' : 'text-slate-400'
+              }`}>
+                {item.shortName}
+              </span>
             </button>
           );
         })}
       </nav>
-
-      {/* WIDGET CONCIERGERIE */}
-      <div className="px-6 mt-auto mb-6">
-        <div className="p-5 bg-gradient-to-br from-blue-50 to-white border border-blue-100/50 rounded-2xl relative overflow-hidden group">
-           <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-             <HeadphonesIcon className="w-20 h-20 text-blue-600" />
-           </div>
-           <div className="relative z-10">
-             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-2">
-               <HeadphonesIcon className="w-4 h-4 text-blue-600" /> Conciergerie
-             </h4>
-             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tight leading-relaxed mb-4">
-               Besoin d'aide pour vos pièces ou vos rendez-vous ?
-             </p>
-             <button className="w-full py-3 bg-white text-blue-600 border border-blue-100 hover:border-blue-600 hover:bg-blue-600 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm">
-               Contacter
-             </button>
-           </div>
-        </div>
-      </div>
-
-      {/* LOGOUT BUTTON */}
-      <div className="px-6 border-t border-slate-50 pt-6">
-        <button 
-          onClick={handleLogout}
-          className="flex items-center justify-center gap-3 w-full py-4 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all group"
-        >
-          <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-black uppercase tracking-widest">Déconnexion</span>
-        </button>
-      </div>
-    </aside>
+    </>
   );
 }

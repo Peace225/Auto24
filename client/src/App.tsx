@@ -18,6 +18,7 @@ import CategoryPage from './pages/CategoryPage';
 import SearchPage from './pages/SearchPage';
 import Checkout from './pages/Checkout';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
+import Batteries from './pages/Batteries';
 
 // PAGES DE SUPPORT & ASSISTANCE
 import SupportPage from './pages/support/SupportPage';
@@ -35,8 +36,9 @@ import Tires from './pages/Tires';
 import Accessories from './pages/Accessories'; 
 import Garages from './pages/Garages'; 
 
-// Import du bouton
+// Import du bouton & Panier
 import WhatsAppFloatingBtn from './components/layout/WhatsAppFloatingBtn';
+import CartDrawer from './components/features/CartDrawer'; // 🟢 1. IMPORT DU PANIER LATÉRAL
 
 // --- AUTRES PAGES VENDEUR ---
 import AddProduct from './pages/vendor/AddProduct';
@@ -70,6 +72,9 @@ function App() {
   return (
     <Router>
       <Toaster position="top-right" />
+      
+      {/* 🟢 2. INTÉGRATION DU PANIER (Il sera accessible sur toutes les pages) */}
+      <CartDrawer />
 
       <Routes>
         {/* --- BLOC PRINCIPAL --- */}
@@ -81,6 +86,7 @@ function App() {
           <Route path="/accessories" element={<Accessories />} />
           <Route path="/garages" element={<Garages />} />
           <Route path="/huiles" element={<MotorOil />} />
+          <Route path="/batteries" element={<Batteries />} />
           <Route path="/outillage" element={<Tools />} />
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/category/:slug" element={<CategoryPage />} />
