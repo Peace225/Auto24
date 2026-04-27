@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Lock, ArrowRight, ShoppingBag, Store, Loader2, AlertCircle, ChevronLeft, ShieldCheck, Home, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, ArrowRight, ShoppingBag, Store, Loader2, AlertCircle, Home, Eye, EyeOff } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
 import { useAuthStore } from '../../store/useAuthStore'; 
@@ -10,9 +10,11 @@ export default function Login() {
   const setUser = useAuthStore((state) => state.setUser);
   
   const [userRole, setUserRole] = useState<'buyer' | 'seller'>('buyer');
-  const [email, setEmail] = useState('');
+  
+  // 🟢 On remplace "email" par "identifier" car ça peut être un Numéro OU un Email
+  const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // 👁️ État pour voir/cacher
+  const [showPassword, setShowPassword] = useState(false); 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -22,7 +24,27 @@ export default function Login() {
     setErrorMsg(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      // 🟢 LOGIQUE DE CONNEXION INTELLIGENTE (Email ou Téléphone)
+      let loginEmail = identifier.trim();
+
+      // Si le texte ne contient pas d'arobase (@), on déduit que c'est un numéro de téléphone
+      if (!loginEmail.includes('@')) {
+        const cleanPhone = loginEmail.replace(/[^0-9]/g, ''); // On garde que les chiffres
+        
+        // On reconstruit le pseudo-email selon le rôle choisi
+        if (userRole === 'seller') {
+          loginEmail = `${cleanPhone}@vendeur.spaceauto24.ci`;
+        } else {
+          loginEmail = `${cleanPhone}@client.spaceauto24.ci`; // Au cas où tu fais la même astuce pour les clients
+        }
+      }
+
+      // Tentative de connexion avec Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email: loginEmail, 
+        password 
+      });
+      
       if (error) throw error;
 
       if (data.user) {
@@ -34,6 +56,12 @@ export default function Login() {
 
         if (profileError) throw new Error("Profil introuvable.");
 
+        // Vérification de sécurité : le rôle correspond-il à ce qu'il a cliqué ? (Optionnel mais recommandé)
+        if (userRole === 'seller' && profile.role !== 'vendor' && profile.role !== 'admin') {
+          await supabase.auth.signOut();
+          throw new Error("Ce compte n'est pas un compte vendeur.");
+        }
+
         setUser({ ...data.user, role: profile.role });
         toast.success("Accès autorisé. Bienvenue.");
 
@@ -42,8 +70,8 @@ export default function Login() {
         else navigate('/dashboard');
       }
     } catch (error: any) {
-      setErrorMsg(error.message.includes("Invalid login credentials") 
-        ? "Identifiants invalides." 
+      setErrorMsg(error.message.includes("Invalid login credentials") || error.message.includes("Ce compte")
+        ? "Identifiants invalides ou rôle incorrect." 
         : "Erreur de connexion au serveur.");
     } finally {
       setIsLoading(false);
@@ -95,10 +123,10 @@ export default function Login() {
 
           {/* SÉLECTEUR DE RÔLE */}
           <div className="flex bg-slate-200/50 p-1 rounded-[20px] mb-8 border border-slate-200 mx-4 lg:mx-0">
-            <button onClick={() => setUserRole('buyer')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[16px] font-[1000] text-[9px] uppercase tracking-widest transition-all duration-300 ${userRole === 'buyer' ? 'bg-white text-blue-600 shadow-xl' : 'text-slate-400'}`}>
+            <button type="button" onClick={() => setUserRole('buyer')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[16px] font-[1000] text-[9px] uppercase tracking-widest transition-all duration-300 ${userRole === 'buyer' ? 'bg-white text-blue-600 shadow-xl' : 'text-slate-400'}`}>
               <ShoppingBag className="w-3.5 h-3.5" /> Client
             </button>
-            <button onClick={() => setUserRole('seller')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[16px] font-[1000] text-[9px] uppercase tracking-widest transition-all duration-300 ${userRole === 'seller' ? 'bg-white text-orange-500 shadow-xl' : 'text-slate-400'}`}>
+            <button type="button" onClick={() => setUserRole('seller')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[16px] font-[1000] text-[9px] uppercase tracking-widest transition-all duration-300 ${userRole === 'seller' ? 'bg-white text-orange-500 shadow-xl' : 'text-slate-400'}`}>
               <Store className="w-3.5 h-3.5" /> Vendeur
             </button>
           </div>
@@ -111,16 +139,20 @@ export default function Login() {
               </div>
             )}
 
-            {/* EMAIL */}
+            {/* 🟢 EMAIL OU TÉLÉPHONE */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Email Pro</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Email ou Numéro</label>
               <div className="relative group">
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-2xl"></div>
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
+                <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
                 <input 
-                  type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  type="text" 
+                  required 
+                  autoComplete="username"
+                  value={identifier} 
+                  onChange={e => setIdentifier(e.target.value)}
                   className="w-full pl-12 pr-6 py-4 md:py-5 bg-white border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none shadow-sm transition-all text-xs md:text-sm"
-                  placeholder="nom@exemple.com"
+                  placeholder="nom@exemple.com ou 0700..."
                 />
               </div>
             </div>
@@ -136,8 +168,9 @@ export default function Login() {
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
                 
                 <input 
-                  type={showPassword ? "text" : "password"} // 🟢 Bascule dynamique du type
+                  type={showPassword ? "text" : "password"} 
                   required 
+                  autoComplete="current-password"
                   value={password} 
                   onChange={e => setPassword(e.target.value)}
                   className="w-full pl-12 pr-14 py-4 md:py-5 bg-white border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none shadow-sm transition-all text-xs md:text-sm"

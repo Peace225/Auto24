@@ -26,7 +26,7 @@ import ReturnPolicyPage from './pages/support/ReturnPolicyPage';
 import FaqPage from './pages/support/FaqPage';
 
 // IMPORTS VENDEUR
-import BecomeVendorPage from './pages/VendorDashboard'; 
+import BecomeVendorPage from './pages/VendorDashboard'; // ⚠️ Vérifie ce chemin, il devrait sûrement être './pages/vendor/BecomeVendorPage'
 import VendorDashboard from './pages/vendor/VendorDashboard'; 
 
 // Pages Thématiques
@@ -38,7 +38,7 @@ import Garages from './pages/Garages';
 
 // Import du bouton & Panier
 import WhatsAppFloatingBtn from './components/layout/WhatsAppFloatingBtn';
-import CartDrawer from './components/features/CartDrawer'; // 🟢 1. IMPORT DU PANIER LATÉRAL
+import CartDrawer from './components/features/CartDrawer'; 
 
 // --- AUTRES PAGES VENDEUR ---
 import AddProduct from './pages/vendor/AddProduct';
@@ -47,6 +47,7 @@ import VendorProducts from './pages/vendor/VendorProducts';
 import VendorSettings from './pages/vendor/VendorSettings';
 import VendorMessages from './pages/vendor/VendorMessages';
 import VendorNotifications from './pages/vendor/VendorNotifications';
+import RegisterVendorPage from './pages/vendor/RegisterVendorPage'; // 🟢 Import de l'Étape 2
 
 // Pages Administration
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -73,7 +74,7 @@ function App() {
     <Router>
       <Toaster position="top-right" />
       
-      {/* 🟢 2. INTÉGRATION DU PANIER (Il sera accessible sur toutes les pages) */}
+      {/* 🟢 INTÉGRATION DU PANIER (Il sera accessible sur toutes les pages) */}
       <CartDrawer />
 
       <Routes>
@@ -98,7 +99,7 @@ function App() {
           <Route path="/return-policy" element={<ReturnPolicyPage />} />
           <Route path="/faq" element={<FaqPage />} />
 
-          {/* Le formulaire de candidature Vendeur */}
+          {/* Le formulaire de candidature Vendeur (Étape 1) */}
           <Route path="/become-vendor" element={<BecomeVendorPage />} /> 
 
           {/* ADMINISTRATION */}
@@ -107,11 +108,13 @@ function App() {
             <Route path="transactions" element={<AdminTransactions />} />
           </Route>
 
-          {/* ESPACE DE GESTION VENDEUR (Privé) */}
+          {/* ESPACE DE GESTION VENDEUR (Privé & Sécurisé) */}
           <Route path="/vendor" element={<VendorLayout />}>
             <Route element={<VendorGuard />}>
               <Route index element={<VendorDashboard />} /> 
               <Route path="dashboard" element={<VendorDashboard />} />
+              
+              {/* 🛑 /register-vendor a été retiré d'ici pour éviter le crash ! */}
               
               <Route path="add-product" element={<AddProduct />} />
               <Route path="orders" element={<VendorOrders />} />
@@ -123,9 +126,13 @@ function App() {
           </Route>
         </Route>
 
-        {/* --- HORS LAYOUT --- */}
+        {/* --- HORS LAYOUT (Pages Plein Écran) --- */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        
+        {/* 🟢 LA PAGE A ÉTÉ DÉPLACÉE ICI ! */}
+        <Route path="/register-vendor" element={<RegisterVendorPage />} />
+        
       </Routes>
 
       {/* 🟢 EXÉCUTION DU COMPOSANT CONDITIONNEL */}

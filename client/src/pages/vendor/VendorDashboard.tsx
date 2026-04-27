@@ -7,7 +7,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 const PACKAGES = [
   {
     id: 'free',
-    name: 'Essentiel',
+    name: 'Classic',
     price: '0 CFA',
     icon: <Star className="w-5 h-5 text-slate-400" />,
     features: ['10 produits max', 'Visibilité basique'],
