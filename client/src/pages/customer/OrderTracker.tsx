@@ -21,16 +21,17 @@ export default function OrderTracker({ orders }: { orders: any[] }) {
     : orders.filter(order => order.status === filterStatus);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
-        <h2 className="text-xl font-[1000] text-slate-900 uppercase italic tracking-tighter">Suivi Logistique</h2>
+      {/* 🟢 HEADER COMPACT */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4 px-1 md:px-2">
+        <h2 className="text-lg md:text-xl font-[1000] text-slate-900 uppercase italic tracking-tighter">Suivi Logistique</h2>
         
-        {/* Filtre des commandes */}
-        <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm w-fit">
-          <Filter className="w-4 h-4 text-slate-400" />
+        {/* Filtre des commandes miniaturisé */}
+        <div className="flex items-center gap-1.5 md:gap-2 bg-white px-3 py-1.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm w-fit">
+          <Filter className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400" />
           <select 
-            className="text-[10px] font-black uppercase tracking-widest text-slate-600 outline-none bg-transparent cursor-pointer"
+            className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-slate-600 outline-none bg-transparent cursor-pointer"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           >
@@ -46,34 +47,36 @@ export default function OrderTracker({ orders }: { orders: any[] }) {
         const activeStep = getActiveStep(order.status);
         
         return (
-          <div key={order.id} className="bg-white border border-slate-100 rounded-[3rem] p-8 md:p-10 shadow-sm overflow-hidden relative">
-            <div className="flex flex-col md:flex-row justify-between gap-8 mb-12">
+          <div key={order.id} className="bg-white border border-slate-100 rounded-2xl md:rounded-[3rem] p-4 md:p-10 shadow-sm overflow-hidden relative">
+            
+            {/* 🟢 EN-TÊTE DE LA CARTE */}
+            <div className="flex flex-col md:flex-row justify-between gap-3 md:gap-8 mb-6 md:mb-12">
               <div>
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] mb-2">
+                <p className="text-[8px] md:text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] mb-1 md:mb-2">
                   Commande #{order.id.slice(0,8).toUpperCase()}
                 </p>
-                <h3 className="text-xl font-[1000] text-slate-900 uppercase tracking-tighter italic">
+                <h3 className="text-sm md:text-xl font-[1000] text-slate-900 uppercase tracking-tighter italic">
                   Arrivée prévue : <span className="text-orange-500">24h - 48h</span>
                 </h3>
               </div>
               <div className="text-left md:text-right">
-                 <p className="text-2xl font-[1000] text-slate-900">
-                   {(order.amount || 0).toLocaleString()} <span className="text-xs text-slate-400">CFA</span>
+                 <p className="text-lg md:text-2xl font-[1000] text-slate-900">
+                   {(order.amount || 0).toLocaleString()} <span className="text-[9px] md:text-xs text-slate-400">CFA</span>
                  </p>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                 <p className="text-[7px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 md:mt-1">
                    {order.payment_method || 'Réglé via Mobile Money'}
                  </p>
               </div>
             </div>
 
-            {/* --- PROGRESS BAR --- */}
-            <div className="relative flex justify-between mt-4 md:mt-8">
+            {/* 🟢 PROGRESS BAR (Ajustée pour le responsive) */}
+            <div className="relative flex justify-between mt-4 md:mt-8 px-1 md:px-0">
               {/* Ligne de fond (Grise) */}
-              <div className="absolute top-5 left-0 w-full h-1 bg-slate-100 rounded-full z-0"></div>
+              <div className="absolute top-3.5 md:top-5 left-0 w-full h-1 bg-slate-100 rounded-full z-0"></div>
               
               {/* Ligne active (Bleue) */}
               <div 
-                className="absolute top-5 left-0 h-1 bg-blue-600 transition-all duration-1000 rounded-full z-0"
+                className="absolute top-3.5 md:top-5 left-0 h-1 bg-blue-600 transition-all duration-1000 rounded-full z-0"
                 style={{ width: `${(activeStep / (STEPS.length - 1)) * 100}%` }}
               ></div>
 
@@ -82,14 +85,14 @@ export default function OrderTracker({ orders }: { orders: any[] }) {
                 const isCurrent = index === activeStep;
 
                 return (
-                  <div key={index} className="relative z-10 flex flex-col items-center gap-3 bg-white px-2">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500
+                  <div key={index} className="relative z-10 flex flex-col items-center gap-1.5 md:gap-3 bg-white px-1 md:px-2">
+                    <div className={`w-7 h-7 md:w-10 md:h-10 rounded-full flex items-center justify-center border-[3px] md:border-4 transition-all duration-500
                       ${isCompleted ? 'bg-blue-600 border-blue-100 text-white shadow-lg' : 'bg-white border-slate-50 text-slate-300'}
-                      ${isCurrent ? 'ring-4 ring-blue-50 scale-110' : ''}`}
+                      ${isCurrent ? 'ring-2 md:ring-4 ring-blue-50 scale-110' : ''}`}
                     >
-                      <step.icon className="w-4 h-4" />
+                      <step.icon className="w-3 h-3 md:w-4 md:h-4" />
                     </div>
-                    <p className={`text-[9px] font-black uppercase tracking-widest text-center ${isCompleted ? 'text-slate-900' : 'text-slate-300'}`}>
+                    <p className={`text-[6px] md:text-[9px] font-black uppercase tracking-widest text-center ${isCompleted ? 'text-slate-900' : 'text-slate-300'}`}>
                       {step.label}
                     </p>
                   </div>
@@ -97,25 +100,26 @@ export default function OrderTracker({ orders }: { orders: any[] }) {
               })}
             </div>
 
-            <div className="mt-12 pt-8 border-t border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-               <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 shrink-0">
-                     <MapPin className="w-5 h-5" />
+            {/* 🟢 PIED DE CARTE (LIVRAISON & DÉTAILS) */}
+            <div className="mt-6 md:mt-12 pt-4 md:pt-8 border-t border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
+               <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
+                  <div className="h-8 w-8 md:h-10 md:w-10 bg-orange-50 rounded-lg md:rounded-xl flex items-center justify-center text-orange-500 shrink-0">
+                     <MapPin className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
-                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-tight">
+                  <p className="text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-tight truncate">
                     Point de livraison : <span className="text-slate-900 block sm:inline mt-0.5 sm:mt-0">{order.delivery_address || 'Abidjan, Cocody'}</span>
                   </p>
                </div>
-               <button className="flex items-center gap-2 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:translate-x-2 transition-transform">
-                 Détails de la facture <ChevronRight className="w-4 h-4" />
+               <button className="flex items-center justify-center w-full md:w-auto gap-1.5 md:gap-2 text-blue-600 font-black text-[8px] md:text-[10px] uppercase tracking-widest hover:translate-x-1 md:hover:translate-x-2 transition-transform bg-slate-50 md:bg-transparent py-2.5 md:py-0 rounded-lg md:rounded-none">
+                 Détails de la facture <ChevronRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                </button>
             </div>
           </div>
         );
       }) : (
-        <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-slate-100">
-           <Package className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+        <div className="bg-white rounded-2xl md:rounded-[3rem] p-10 md:p-20 text-center border-2 border-dashed border-slate-100">
+           <Package className="w-8 h-8 md:w-12 md:h-12 text-slate-200 mx-auto mb-2 md:mb-4" />
+           <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
              {filterStatus === 'All' ? 'Aucun colis en route' : `Aucune commande au statut : ${filterStatus}`}
            </p>
         </div>

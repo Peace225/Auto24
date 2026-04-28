@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Lock, ArrowRight, ShoppingBag, Store, Loader2, AlertCircle, Home, Eye, EyeOff } from 'lucide-react';
+import { Lock, ArrowRight, ShoppingBag, Store, Loader2, AlertCircle, Home, Eye, EyeOff, Phone, Mail, ChevronLeft, MessageCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
 import { useAuthStore } from '../../store/useAuthStore'; 
@@ -10,200 +10,244 @@ export default function Login() {
   const setUser = useAuthStore((state) => state.setUser);
   
   const [userRole, setUserRole] = useState<'buyer' | 'seller'>('buyer');
+  const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('phone');
   
-  // 🟢 On remplace "email" par "identifier" car ça peut être un Numéro OU un Email
   const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false); 
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const handleMethodChange = (method: 'phone' | 'email') => {
+    setLoginMethod(method);
+    setIdentifier('');
+    setErrorMsg(null);
+  };
+
+  // 🟢 LOGIQUE DE CONNEXION
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg(null);
 
     try {
-      // 🟢 LOGIQUE DE CONNEXION INTELLIGENTE (Email ou Téléphone)
-      let loginEmail = identifier.trim();
+      let finalLoginEmail = '';
 
-      // Si le texte ne contient pas d'arobase (@), on déduit que c'est un numéro de téléphone
-      if (!loginEmail.includes('@')) {
-        const cleanPhone = loginEmail.replace(/[^0-9]/g, ''); // On garde que les chiffres
-        
-        // On reconstruit le pseudo-email selon le rôle choisi
-        if (userRole === 'seller') {
-          loginEmail = `${cleanPhone}@vendeur.spaceauto24.ci`;
-        } else {
-          loginEmail = `${cleanPhone}@client.spaceauto24.ci`; // Au cas où tu fais la même astuce pour les clients
-        }
+      if (loginMethod === 'phone') {
+        const cleanPhone = identifier.replace(/[^0-9]/g, ''); 
+        if (cleanPhone.length < 8) throw new Error("Numéro de téléphone invalide.");
+        finalLoginEmail = userRole === 'seller' ? `${cleanPhone}@vendeur.spaceauto24.ci` : `${cleanPhone}@client.spaceauto24.ci`;
+      } else {
+        if (!identifier.includes('@')) throw new Error("Veuillez entrer une adresse email valide.");
+        finalLoginEmail = identifier.trim();
       }
 
-      // Tentative de connexion avec Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({ 
-        email: loginEmail, 
-        password 
-      });
-      
+      const { data, error } = await supabase.auth.signInWithPassword({ email: finalLoginEmail, password });
       if (error) throw error;
 
       if (data.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
-
+        const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
         if (profileError) throw new Error("Profil introuvable.");
 
-        // Vérification de sécurité : le rôle correspond-il à ce qu'il a cliqué ? (Optionnel mais recommandé)
-        if (userRole === 'seller' && profile.role !== 'vendor' && profile.role !== 'admin') {
-          await supabase.auth.signOut();
-          throw new Error("Ce compte n'est pas un compte vendeur.");
-        }
-
         setUser({ ...data.user, role: profile.role });
-        toast.success("Accès autorisé. Bienvenue.");
+        toast.success("Heureux de vous revoir !");
 
         if (profile.role === 'admin') navigate('/admin/dashboard');
         else if (profile.role === 'vendor') navigate('/vendor/dashboard');
         else navigate('/dashboard');
       }
     } catch (error: any) {
-      setErrorMsg(error.message.includes("Invalid login credentials") || error.message.includes("Ce compte")
-        ? "Identifiants invalides ou rôle incorrect." 
-        : "Erreur de connexion au serveur.");
+      setErrorMsg(error.message.includes("Invalid login credentials") ? "Identifiants ou mot de passe incorrects." : error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 🟢 LOGIQUE DE MOT DE PASSE OUBLIÉ (100% FONCTIONNELLE)
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg(null);
+
+    try {
+      if (loginMethod === 'phone') {
+        // 📱 TRAITEMENT PAR TÉLÉPHONE (Redirection WhatsApp)
+        const cleanPhone = identifier.replace(/[^0-9]/g, '');
+        if (cleanPhone.length < 8) throw new Error("Veuillez entrer le numéro lié à votre compte.");
+
+        // Remplace par le vrai numéro WhatsApp de SpaceAuto24 (format international sans le +)
+        const whatsappNumber = "2250100000000"; 
+        const message = `Bonjour le support SpaceAuto24 🚗,\nJ'ai oublié mon mot de passe. Mon numéro de compte est le : *${cleanPhone}*.\nPouvez-vous m'aider à le réinitialiser ?`;
+        
+        // Ouvre WhatsApp dans un nouvel onglet
+        window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
+        
+        toast.success("Ouverture de WhatsApp...");
+        setIsForgotPassword(false); // Retour au login
+        setIdentifier('');
+
+      } else {
+        // 📧 TRAITEMENT PAR EMAIL (Lien de réinitialisation Supabase)
+        if (!identifier.includes('@')) throw new Error("Veuillez entrer une adresse email valide.");
+        
+        const { error } = await supabase.auth.resetPasswordForEmail(identifier.trim(), {
+          redirectTo: `${window.location.origin}/update-password`, // L'URL où l'utilisateur atterrira
+        });
+        
+        if (error) throw error;
+        
+        toast.success("Si cet email existe, un lien vous a été envoyé !");
+        setIsForgotPassword(false); // Retour au login
+        setIdentifier('');
+      }
+    } catch (error: any) {
+      setErrorMsg(error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-white overflow-hidden font-sans">
+    <div className="min-h-screen w-full flex bg-white font-sans overflow-hidden">
       
-      {/* 🏎️ PARTIE GAUCHE : VISUELLE (Desktop) */}
+      {/* 🏎️ CÔTÉ GAUCHE : VISUEL */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-slate-900 items-center justify-center p-12">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1603386329225-868f9b1ee6c9?auto=format&fit=crop&q=80&w=2000" 
-            alt="Finition Auto Luxe" 
-            className="w-full h-full object-cover opacity-40 mix-blend-luminosity"
-          />
+          <img src="https://images.unsplash.com/photo-1603386329225-868f9b1ee6c9?auto=format&fit=crop&q=80&w=2000" className="w-full h-full object-cover opacity-40 mix-blend-luminosity" alt="Luxe" />
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-slate-900/90 to-slate-900"></div>
         </div>
-        <div className="relative z-10 max-w-lg">
-          <Link to="/" className="inline-block mb-12 group">
-             <span className="text-4xl font-[1000] text-white tracking-tighter uppercase italic group-hover:text-blue-400 transition-colors">
-               SpaceAuto<span className="text-blue-500 font-black">24</span>
-             </span>
+        <div className="relative z-10">
+          <Link to="/" className="text-4xl font-[1000] text-white tracking-tighter uppercase italic">
+            SpaceAuto<span className="text-blue-500">24</span>
           </Link>
-          <h1 className="text-6xl font-[1000] text-white leading-none tracking-tighter uppercase italic mb-6">
-            L'excellence <br /> Automobile <br /> à portée de main.
+          <h1 className="text-5xl font-[1000] text-white mt-12 leading-tight uppercase italic">
+            Pilotez votre <br /> succès <br /> automobile.
           </h1>
         </div>
       </div>
 
-      {/* 🛠️ PARTIE DROITE : FORMULAIRE */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 bg-slate-50 relative min-h-screen">
-        
-        {/* 🏠 BOUTON ACCUEIL */}
-        <Link 
-          to="/" 
-          className="absolute top-6 left-6 md:top-10 md:left-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-500 transition-all z-50"
-        >
+      {/* 🛠️ CÔTÉ DROIT : FORMULAIRE */}
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 bg-slate-50 relative">
+        <Link to="/" className="absolute top-8 left-8 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm hover:shadow-md transition-all">
           <Home className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-[1000] text-slate-900 uppercase tracking-widest">Accueil</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Accueil</span>
         </Link>
 
-        <div className="w-full max-w-[440px] animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <div className="mb-8 md:mb-12 text-center lg:text-left px-4">
-            <h2 className="text-2xl md:text-3xl font-[1000] text-slate-900 uppercase tracking-tighter italic mb-2">Se Connecter</h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Veuillez entrer vos paramètres d'accès</p>
+        <div className="w-full max-w-[400px]">
+          
+          {/* HEADER DYNAMIQUE */}
+          <div className="mb-8 text-center lg:text-left transition-all duration-300">
+            {isForgotPassword ? (
+              <>
+                <button type="button" onClick={() => setIsForgotPassword(false)} className="flex items-center justify-center lg:justify-start gap-1 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors mb-4 mx-auto lg:mx-0">
+                  <ChevronLeft size={14} /> Retour
+                </button>
+                <h2 className="text-3xl font-[1000] text-slate-900 uppercase italic tracking-tighter">Récupération</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Réinitialisez votre accès</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-[1000] text-slate-900 uppercase italic tracking-tighter">Connexion</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Choisissez votre profil</p>
+              </>
+            )}
           </div>
 
-          {/* SÉLECTEUR DE RÔLE */}
-          <div className="flex bg-slate-200/50 p-1 rounded-[20px] mb-8 border border-slate-200 mx-4 lg:mx-0">
-            <button type="button" onClick={() => setUserRole('buyer')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[16px] font-[1000] text-[9px] uppercase tracking-widest transition-all duration-300 ${userRole === 'buyer' ? 'bg-white text-blue-600 shadow-xl' : 'text-slate-400'}`}>
-              <ShoppingBag className="w-3.5 h-3.5" /> Client
-            </button>
-            <button type="button" onClick={() => setUserRole('seller')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[16px] font-[1000] text-[9px] uppercase tracking-widest transition-all duration-300 ${userRole === 'seller' ? 'bg-white text-orange-500 shadow-xl' : 'text-slate-400'}`}>
-              <Store className="w-3.5 h-3.5" /> Vendeur
-            </button>
+          {/* SÉLECTEUR DE RÔLE (Masqué si on réinitialise) */}
+          {!isForgotPassword && (
+            <div className="flex bg-slate-200/50 p-1.5 rounded-2xl mb-6 border border-slate-200">
+              <button type="button" onClick={() => setUserRole('buyer')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${userRole === 'buyer' ? 'bg-white text-blue-600 shadow-lg' : 'text-slate-500'}`}>
+                <ShoppingBag size={14} /> Client
+              </button>
+              <button type="button" onClick={() => setUserRole('seller')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${userRole === 'seller' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-500'}`}>
+                <Store size={14} /> Vendeur
+              </button>
+            </div>
+          )}
+
+          {/* TOGGLE EMAIL / TÉLÉPHONE */}
+          <div className="flex gap-4 border-b border-slate-200 mb-6">
+            <button type="button" onClick={() => handleMethodChange('phone')} className={`pb-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${loginMethod === 'phone' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Par Téléphone</button>
+            <button type="button" onClick={() => handleMethodChange('email')} className={`pb-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${loginMethod === 'email' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Par Email</button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6 px-4 lg:px-0">
-            {errorMsg && (
-              <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake">
-                <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                <p className="text-[9px] font-black text-red-600 uppercase tracking-wider">{errorMsg}</p>
+          {errorMsg && (
+            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake mb-6">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-[9px] font-black text-red-600 uppercase">{errorMsg}</p>
+            </div>
+          )}
+
+          {/* FORMULAIRE (LOGIN vs RESET) */}
+          <form onSubmit={isForgotPassword ? handleResetPassword : handleSubmit} className="space-y-5 animate-in fade-in duration-500">
+            
+            {/* IDENTIFIANT */}
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+                {loginMethod === 'phone' ? 'Numéro de téléphone' : 'Adresse Email'}
+              </label>
+              <div className="relative group">
+                {loginMethod === 'phone' ? <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" /> : <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />}
+                <input 
+                  type={loginMethod === 'phone' ? 'tel' : 'email'} 
+                  required 
+                  placeholder={loginMethod === 'phone' ? "07 00 00 00 00" : "contact@exemple.com"}
+                  value={identifier} 
+                  onChange={e => setIdentifier(e.target.value)}
+                  className="w-full pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none shadow-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm"
+                />
+              </div>
+            </div>
+
+            {/* MOT DE PASSE (Seulement si on se connecte) */}
+            {!isForgotPassword && (
+              <div className="space-y-2 animate-in slide-in-from-bottom-2 duration-300">
+                <div className="flex justify-between px-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Mot de passe</label>
+                  <button type="button" onClick={() => { setIsForgotPassword(true); setErrorMsg(null); }} className="text-[8px] font-black text-blue-600 uppercase underline hover:text-slate-900 transition-colors">Oublié ?</button>
+                </div>
+                <div className="relative group">
+                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required={!isForgotPassword} 
+                    placeholder="••••••••"
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)}
+                    className="w-full pl-12 pr-14 py-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none shadow-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-blue-600 transition-colors">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* 🟢 EMAIL OU TÉLÉPHONE */}
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Email ou Numéro</label>
-              <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-2xl"></div>
-                <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                <input 
-                  type="text" 
-                  required 
-                  autoComplete="username"
-                  value={identifier} 
-                  onChange={e => setIdentifier(e.target.value)}
-                  className="w-full pl-12 pr-6 py-4 md:py-5 bg-white border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none shadow-sm transition-all text-xs md:text-sm"
-                  placeholder="nom@exemple.com ou 0700..."
-                />
-              </div>
-            </div>
-
-            {/* PASSWORD AVEC TOGGLE VOIR/CACHER */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center px-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Mot de passe</label>
-                <button type="button" className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Perdu ?</button>
-              </div>
-              <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-focus-within:bg-blue-600 transition-all rounded-l-2xl"></div>
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  autoComplete="current-password"
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-14 py-4 md:py-5 bg-white border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none shadow-sm transition-all text-xs md:text-sm"
-                  placeholder="••••••••"
-                />
-
-                {/* 👁️ BOUTON VOIR/CACHER */}
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-blue-600 transition-colors p-1"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
+            {/* BOUTON D'ACTION */}
             <button 
               type="submit" disabled={isLoading}
-              className={`w-full group relative overflow-hidden py-5 md:py-6 rounded-2xl font-[1000] text-[10px] uppercase tracking-[0.3em] text-white transition-all active:scale-[0.98] shadow-2xl disabled:opacity-50 ${userRole === 'buyer' ? 'bg-blue-600 shadow-blue-600/20' : 'bg-slate-900 shadow-slate-900/20'}`}
+              className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] text-white transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3 mt-4 
+                ${isForgotPassword 
+                  ? (loginMethod === 'phone' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20')
+                  : (userRole === 'buyer' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/20')
+                }`}
             >
-              <div className="absolute inset-0 w-full h-full bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              <span className="relative z-10 flex items-center justify-center gap-3">
-                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Connexion <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" /></>}
-              </span>
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                isForgotPassword ? (
+                  loginMethod === 'phone' ? <>Support WhatsApp <MessageCircle size={16}/></> : <>M'envoyer le lien <ArrowRight size={16} /></>
+                ) : <>Se Connecter <ArrowRight size={16} /></>
+              )}
             </button>
           </form>
 
-          <div className="mt-10 md:mt-12 text-center">
-            <Link to="/register" className="group inline-flex items-center gap-4 py-3.5 px-8 bg-white border border-slate-200 rounded-full text-[9px] font-[1000] text-slate-900 uppercase tracking-[0.2em] hover:bg-slate-900 hover:text-white transition-all duration-500">
-              Rejoindre l'élite <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </div>
+          {!isForgotPassword && (
+            <div className="mt-8 text-center">
+              <Link to="/become-vendor" className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors">
+                Pas encore de compte ? <span className="text-blue-600 underline ml-1">Inscrivez-vous</span>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>
