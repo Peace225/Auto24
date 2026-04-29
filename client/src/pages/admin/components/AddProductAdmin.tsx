@@ -5,26 +5,26 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../../../lib/supabase';
+import { useAuthStore } from '../../../store/useAuthStore'; 
 
 export default function AddProductAdmin() {
+  const { user } = useAuthStore(); 
   const [isLoading, setIsLoading] = useState(false);
   const [vendors, setVendors] = useState<{id: string, store_name: string}[]>([]);
   const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
 
   const [productData, setProductData] = useState({
-    vendorId: '',
+    vendorId: user?.id || '', // 🟢 Par défaut, c'est TON ID d'admin
     name: '',
     price: '',
     categoryId: '', 
     stock: '1',
     description: '',
-    // 🟢 Nouveaux champs d'identification
     reference: '',
     brand: '',
     model: '',
     phase: '',
     year: '',
-    // Spécifiques Batteries
     capacity: '',
     cca: '',
     batteryType: 'Standard'
@@ -44,12 +44,17 @@ export default function AddProductAdmin() {
         ]);
         if (vendorsResponse.data) setVendors(vendorsResponse.data);
         if (categoriesResponse.data) setCategories(categoriesResponse.data);
+        
+        // 🟢 Sécurité : s'assurer que le vendorId est bien le tien au chargement
+        if (user) {
+          setProductData(prev => ({ ...prev, vendorId: user.id }));
+        }
       } catch (err) {
         toast.error("Erreur de chargement des paramètres.");
       }
     };
     fetchData();
-  }, []);
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setProductData({ ...productData, [e.target.name]: e.target.value });
@@ -65,7 +70,8 @@ export default function AddProductAdmin() {
 
   const resetForm = () => {
     setProductData({ 
-      vendorId: '', name: '', price: '', categoryId: '', stock: '1', 
+      vendorId: user?.id || '', // 🟢 Reste sur TON ID après avoir vidé le formulaire
+      name: '', price: '', categoryId: '', stock: '1', 
       description: '', reference: '', brand: '', model: '', 
       phase: '', year: '', capacity: '', cca: '', batteryType: 'Standard' 
     });
@@ -91,9 +97,12 @@ export default function AddProductAdmin() {
 
       if (isBatteryCategory) {
         const { error } = await supabase.from('batteries').insert({
+          vendor_id: productData.vendorId, 
+          category_id: productData.categoryId, 
           name: productData.name,
           brand: productData.brand || 'Générique',
           price: parseInt(productData.price),
+          stock: parseInt(productData.stock), 
           capacity: productData.capacity,
           cca: productData.cca,
           type: productData.batteryType,
@@ -102,14 +111,13 @@ export default function AddProductAdmin() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from('products').insert({
-          vendor_id: productData.vendorId,
+          vendor_id: productData.vendorId, 
           category_id: productData.categoryId,
           name: productData.name,
           price: parseFloat(productData.price),
           stock: parseInt(productData.stock),
           description: productData.description,
           image_url: publicUrl,
-          // 🟢 Insertion des nouveaux champs techniques
           reference: productData.reference,
           brand: productData.brand,
           model: productData.model,
@@ -147,8 +155,13 @@ export default function AddProductAdmin() {
             <div className="space-y-2">
               <label className="text-[9px] font-black text-blue-400 uppercase tracking-widest ml-2">Propriétaire du stock</label>
               <select name="vendorId" value={productData.vendorId} onChange={handleChange} required className="w-full px-6 py-4 bg-slate-900 border border-white/10 rounded-2xl font-bold text-white outline-none focus:border-blue-500/50 transition-all text-xs appearance-none">
-                <option value="">Sélectionner un vendeur</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.store_name}</option>)}
+                {/* 🟢 Option explicite garantissant l'envoi vers MyStoreInventory */}
+                <option value={user?.id || ''}>👑 Ma Boutique (SpaceAuto Admin)</option>
+                <option value="" disabled>─── Vendeurs Marketplace ───</option>
+                {/* On filtre pour éviter d'afficher le compte admin deux fois s'il est aussi dans la table profils */}
+                {vendors.filter(v => v.id !== user?.id).map(v => (
+                  <option key={v.id} value={v.id}>{v.store_name}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-2">

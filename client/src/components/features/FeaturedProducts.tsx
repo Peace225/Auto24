@@ -5,7 +5,6 @@ import {
   Crown, Store, CheckCircle2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { productService } from '../../services/productService';
 import { supabase } from '../../lib/supabase';
 
 export default function FeaturedProducts() {
@@ -16,8 +15,7 @@ export default function FeaturedProducts() {
     if (!silent) setIsLoading(true);
     
     try {
-      const localData = await productService.getProducts();
-
+      // 🟢 On demande uniquement à Supabase (fini les doublons !)
       const { data: supabaseData, error } = await supabase
         .from('products')
         .select(`
@@ -31,7 +29,7 @@ export default function FeaturedProducts() {
 
       if (error) throw error;
 
-      const formattedSupabaseData = (supabaseData || []).map((item) => {
+      const formattedData = (supabaseData || []).map((item) => {
         const reviewsArray = item.reviews || [];
         const totalReviews = reviewsArray.length;
         const avgRating = totalReviews > 0 ? reviewsArray.reduce((acc: number, curr: any) => acc + (curr.rating || 0), 0) / totalReviews : 0;
@@ -66,9 +64,8 @@ export default function FeaturedProducts() {
         };
       });
 
-      const combinedData = [...formattedSupabaseData, ...localData];
-      
-      const sortedItems = combinedData.sort((a, b) => {
+      // Tri pour mettre les produits "boostés" en premier
+      const sortedItems = formattedData.sort((a, b) => {
         const aBoost = a.is_boosted ? 1 : 0;
         const bBoost = b.is_boosted ? 1 : 0;
         return bBoost - aBoost;
@@ -136,7 +133,6 @@ export default function FeaturedProducts() {
             </h2>
           </div>
 
-          {/* 🟢 BOUTON HEADER COMPACT (Taille réduite) */}
           <Link to="/catalog" className="group flex items-center justify-center gap-1.5 bg-slate-900 px-3.5 md:px-7 py-2.5 md:py-4 rounded-lg md:rounded-xl font-black text-[9px] md:text-[11px] uppercase tracking-widest text-white hover:bg-blue-600 transition-all shadow-xl self-start md:self-end">
             Voir tout le stock <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform" />
           </Link>

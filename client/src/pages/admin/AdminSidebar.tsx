@@ -8,7 +8,11 @@ import {
   LogOut,
   PlusCircle,
   PackagePlus,
-  Settings // 🟢 Ajout de l'icône Paramètres
+  Settings,
+  Database,
+  UserCheck,
+  Crown,
+  Store
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -22,30 +26,36 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
 
-  // --- CONFIGURATION DU POSITIONNEMENT ---
-  const totalOffset = 70; 
+  const totalOffset = 75; // Aligné sur la hauteur du header
 
-  // 🟢 NOUVEAU : J'ai ajouté 'Paramètres' à la fin de la liste
+  // 🟢 NAVIGATION MISE À JOUR : Ajout de "Mon Inventaire" et "Abonnements"
   const menuItems = [
     { id: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'sellers', icon: Users, label: 'Vendeurs' },
-    { id: 'products', icon: PackageSearch, label: 'Validation Articles' },
+    { id: 'subscriptions', icon: Crown, label: 'Abonnements' }, // Pour gérer les plans Pro/Premium
+    { id: 'users', icon: Users, label: 'Utilisateurs' },
+    { id: 'vendors', icon: UserCheck, label: 'Approbations' },
+    { id: 'my-store', icon: Store, label: 'Mon Inventaire' }, // Gestion spécifique SpaceAuto
+    { id: 'products', icon: PackageSearch, label: 'Stock Global' },
+    { id: 'ktype', icon: Database, label: 'Véhicules' },
     { id: 'payments', icon: CreditCard, label: 'Transactions' },
     { id: 'disputes', icon: Gavel, label: 'Litiges' },
     { id: 'settings', icon: Settings, label: 'Paramètres' }, 
   ];
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       setUser(null);
       navigate('/login');
+    } catch (error) {
+      console.error("Erreur de déconnexion:", error);
     }
   };
 
   return (
     <aside 
-      className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-8 bg-[#0B0F1A] sticky z-30"
+      className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-6 bg-[#0B0F1A] sticky z-30 overflow-y-auto scrollbar-hide"
       style={{ 
         top: `${totalOffset}px`, 
         height: `calc(100vh - ${totalOffset}px)`,
@@ -53,46 +63,40 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
     >
       {/* LABEL DE SECTION */}
       <div className="px-4">
-        <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">
+        <p className="text-[9px] font-[1000] text-slate-600 uppercase tracking-[0.3em]">
           Menu Principal
         </p>
       </div>
 
-      {/* BOUTONS D'ACTION RAPIDE (CRÉATION) */}
-      <div className="px-2 -mt-2 space-y-3">
-        {/* Bouton Créer Boutique */}
+      {/* BOUTONS D'ACTION RAPIDE (Style Nano-UI) */}
+      <div className="px-2 space-y-2.5">
         <button 
           onClick={() => setActiveTab('create-store')}
-          className={`w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl transition-all group active:scale-95 ${
+          className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl transition-all group active:scale-95 ${
             activeTab === 'create-store' 
-              ? 'bg-blue-500 text-white shadow-[0_0_30px_rgba(59,130,246,0.5)]' 
-              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]'
+              ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' 
+              : 'bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white border border-blue-500/10'
           }`}
         >
-          <PlusCircle className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-          <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
-            Créer Boutique
-          </span>
+          <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
+          <span className="text-[9px] font-black uppercase tracking-widest">Créer Boutique</span>
         </button>
 
-        {/* Bouton Ajouter Produit */}
         <button 
           onClick={() => setActiveTab('add-product')}
-          className={`w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl transition-all group active:scale-95 border ${
+          className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl transition-all group active:scale-95 border ${
             activeTab === 'add-product' 
-              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.2)]' 
-              : 'bg-transparent border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
+              : 'bg-transparent border-white/5 text-slate-400 hover:border-emerald-500/50 hover:text-emerald-500'
           }`}
         >
-          <PackagePlus className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
-          <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
-            Ajouter Produit
-          </span>
+          <PackagePlus className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+          <span className="text-[9px] font-black uppercase tracking-widest">Ajouter Produit</span>
         </button>
       </div>
 
       {/* NAVIGATION TABS */}
-      <nav className="flex flex-col gap-2 w-full flex-1 mt-4">
+      <nav className="flex flex-col gap-1 w-full flex-1">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
           
@@ -100,42 +104,39 @@ export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) 
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center justify-between px-4 py-4 rounded-2xl transition-all group relative ${
+              className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all group relative ${
                 isActive 
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10 shadow-[0_0_20px_rgba(37,99,235,0.05)]' 
+                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10' 
                 : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'
               }`}
             >
-              <div className="flex items-center gap-4">
-                <item.icon className={`w-5 h-5 transition-transform duration-500 ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110'}`} />
-                <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] whitespace-nowrap">
+              <div className="flex items-center gap-3">
+                <item.icon className={`w-4 h-4 transition-transform duration-300 ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110'}`} />
+                <span className="text-[9px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
                   {item.label}
                 </span>
               </div>
 
-              {/* Petit indicateur actif à droite */}
               {isActive && (
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
+                <div className="w-1 h-1 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,1)]" />
               )}
             </button>
           );
         })}
       </nav>
 
-      {/* DÉCONNEXION EN BAS */}
-      <div className="pt-6 border-t border-white/5 mt-auto">
+      {/* PIED DE SIDEBAR */}
+      <div className="pt-4 border-t border-white/5 mt-auto">
         <button 
           onClick={handleLogout}
-          className="flex items-center gap-4 px-4 py-4 rounded-2xl text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition-all w-full group"
+          className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition-all w-full group"
         >
-          <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-            Déconnexion
-          </span>
+          <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-[9px] font-black uppercase tracking-widest">Déconnexion</span>
         </button>
         
-        <div className="mt-4 px-4">
-          <p className="text-[7px] font-black text-slate-800 uppercase tracking-[0.4em]">
+        <div className="mt-4 px-4 opacity-20">
+          <p className="text-[6px] font-black text-white uppercase tracking-[0.4em]">
             SpaceAuto System v3.1
           </p>
         </div>
