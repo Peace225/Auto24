@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Package, Car, Heart, 
@@ -15,6 +16,7 @@ interface CustomerSidebarProps {
 
 export default function CustomerSidebar({ activeTab, setActiveTab }: CustomerSidebarProps) {
   const { user, setUser } = useAuthStore();
+  const [favoritesCount, setFavoritesCount] = useState(0);
 
   const handleLogout = async () => {
     try {
@@ -26,7 +28,33 @@ export default function CustomerSidebar({ activeTab, setActiveTab }: CustomerSid
     }
   };
 
-  // 🟢 Ajout de "shortName" pour l'affichage optimisé sur Mobile
+  // 🟢 LOGIQUE : Récupérer le nombre exact de favoris de l'utilisateur
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchFavoritesCount = async () => {
+      const { count } = await supabase
+        .from('favorites')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      
+      setFavoritesCount(count || 0);
+    };
+
+    fetchFavoritesCount();
+
+    // S'abonner aux changements pour mettre à jour le badge en temps réel
+    const channel = supabase.channel('favorites-sidebar')
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public', table: 'favorites', filter: `user_id=eq.${user.id}` }, 
+        () => { fetchFavoritesCount(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
   const navItems = [
     { id: 'shop', name: 'Boutique Pièces', shortName: 'Boutique', icon: ShoppingCart },
     { id: 'orders', name: 'Mes Commandes', shortName: 'Commandes', icon: Package },
@@ -87,9 +115,17 @@ export default function CustomerSidebar({ activeTab, setActiveTab }: CustomerSid
                     ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 translate-x-1' 
                     : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'}`}
               >
-                <item.icon className={`w-5 h-5 relative z-10 transition-transform duration-500 
-                  ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110 group-hover:text-blue-600'}`} 
-                />
+                <div className="relative">
+                  <item.icon className={`w-5 h-5 relative z-10 transition-transform duration-500 
+                    ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110 group-hover:text-blue-600'}`} 
+                  />
+                  {/* 🟢 BADGE COMPTEUR FAVORIS (DESKTOP) */}
+                  {item.id === 'wishlist' && favoritesCount > 0 && (
+                    <span className={`absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full text-[8px] font-black border-2 z-20 ${isActive ? 'bg-red-500 border-slate-900 text-white' : 'bg-red-500 border-white text-white'}`}>
+                      {favoritesCount}
+                    </span>
+                  )}
+                </div>
                 
                 <span className={`text-[10px] font-black uppercase tracking-widest relative z-10 transition-colors
                   ${isActive ? 'text-white' : 'group-hover:text-slate-900'}`}>
@@ -156,9 +192,17 @@ export default function CustomerSidebar({ activeTab, setActiveTab }: CustomerSid
                 <span className="absolute -top-3 w-1 h-1 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
               )}
 
-              <item.icon className={`w-5 h-5 transition-all duration-300 ${
-                isActive ? 'text-blue-600 scale-110 -translate-y-1' : 'text-slate-400'
-              }`} />
+              <div className="relative">
+                <item.icon className={`w-5 h-5 transition-all duration-300 ${
+                  isActive ? 'text-blue-600 scale-110 -translate-y-1' : 'text-slate-400'
+                }`} />
+                {/* 🟢 BADGE COMPTEUR FAVORIS (MOBILE) */}
+                {item.id === 'wishlist' && favoritesCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 w-3.5 h-3.5 flex items-center justify-center bg-red-500 text-white rounded-full text-[7px] font-black border border-white z-20">
+                    {favoritesCount}
+                  </span>
+                )}
+              </div>
 
               <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${
                 isActive ? 'text-slate-900' : 'text-slate-400'

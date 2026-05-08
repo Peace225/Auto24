@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  ShoppingCart, ShieldCheck, MessageCircle, ArrowLeft, Loader2, 
-  Info, CheckCircle2, CreditCard, Banknote, Droplets, Home,
-  Store, Star, Hash, Car, UserCircle2, Wrench, Settings2, Crown
+import {
+  ShoppingCart, ShieldCheck, MessageCircle, ArrowLeft, Loader2,
+  Info, CheckCircle2, Home, Store, Star, Car, UserCircle2, Crown, PenLine, X, Tag, AlertTriangle, Flag
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { supabase } from '../lib/supabase';
-import type { Product } from '../types';
+import RelatedVendorProducts from '../components/features/RelatedVendorProducts';
 
 export default function ProductDetails() {
   const { id } = useParams<{ id: string }>();
@@ -16,381 +15,507 @@ export default function ProductDetails() {
 
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
   const fallbackImage = "https://placehold.co/600x400/f8fafc/94a3b8?text=Image+Indisponible";
 
-  useEffect(() => {
-    const fetchProduct = async () => {
-      if (!id) return;
-      setIsLoading(true);
-      try {
-        let { data, error } = await supabase
-          .from('products')
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = fallbackImage;
+  };
+
+  const fetchProduct = async () => {
+    if (!id) return;
+    setIsLoading(true);
+    try {
+      let { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !data) {
+        const { data: bData } = await supabase
+          .from('batteries')
           .select('*')
           .eq('id', id)
           .maybeSingle();
-
-        if (error || !data) {
-          const { data: bData } = await supabase
-            .from('batteries')
-            .select('*')
-            .eq('id', id)
-            .maybeSingle();
-            
-          if (bData) data = bData;
-        }
-
-        if (data) {
-          if (data.vendor_id) {
-            const { data: vendorData } = await supabase
-              .from('profiles')
-              .select('store_name, commune, subscription_plan, role, phone')
-              .eq('id', data.vendor_id)
-              .maybeSingle();
-            
-            data.vendor = vendorData || { role: 'admin', store_name: 'SPACEAUTO24 OFFICIEL' };
-          } else {
-            data.vendor = { role: 'admin', store_name: 'SPACEAUTO24 OFFICIEL' };
-          }
-
-          const { data: reviewsData } = await supabase
-            .from('reviews')
-            .select('rating, comment, created_at, user:profiles!user_id(store_name)')
-            .eq('product_id', id);
-            
-          data.reviews = reviewsData || [];
-          
-          setProduct(data);
-        }
-      } catch (error) {
-        console.error("Erreur:", error);
-      } finally {
-        setIsLoading(false);
+        if (bData) data = bData;
       }
-    };
+
+      if (data) {
+        if (data.vendor_id) {
+          const { data: vData } = await supabase
+            .from('profiles')
+            .select('store_name, role, phone')
+            .eq('id', data.vendor_id)
+            .maybeSingle();
+          data.vendor = vData || { role: 'admin', store_name: 'SPACEAUTO24 OFFICIEL' };
+        } else {
+          data.vendor = { role: 'admin', store_name: 'SPACEAUTO24 OFFICIEL' };
+        }
+
+        const { data: reviewsData, error: reviewsError } = await supabase
+          .from('reviews')
+          .select(`
+            rating,
+            comment,
+            created_at,
+            profiles (store_name)
+          `)
+          .eq('product_id', id)
+          .order('created_at', { ascending: false });
+
+        if (reviewsError) {
+          console.warn('Reviews join failed:', reviewsError.message);
+          data.reviews = [];
+        } else {
+          data.reviews = reviewsData || [];
+        }
+
+        setProduct(data);
+      }
+    } catch (error) {
+      console.error("Erreur technique:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!reviewComment.trim()) {
+      alert('Le commentaire est obligatoire');
+      return;
+    }
+    setIsSubmittingReview(true);
+    const { error } = await supabase
+      .from('reviews')
+      .insert({
+        product_id: id,
+        user_id: user.id,
+        rating: reviewRating,
+        comment: reviewComment.trim()
+      });
+
+    if (error) {
+      alert('Erreur: ' + error.message);
+    } else {
+      setShowReviewModal(false);
+      setReviewComment('');
+      setReviewRating(5);
+      await fetchProduct();
+    }
+    setIsSubmittingReview(false);
+  };
+
+  // 🟢 LOGIQUE DE SIGNALEMENT MULTI-DESTINATAIRES
+  const handleSubmitReport = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!reportReason.trim()) {
+      alert('Veuillez sélectionner un motif');
+      return;
+    }
+    setIsSubmittingReport(true);
+
+    try {
+      const { error: reportError } = await supabase
+        .from('reports')
+        .insert({
+          product_id: id,
+          vendor_id: product.vendor_id,
+          user_id: user.id,
+          reason: reportReason,
+          details: reportDetails.trim(),
+          status: 'pending'
+        });
+
+      if (reportError) throw reportError;
+
+      const vendorName = product.vendor?.store_name || 'Boutique Partenaire';
+      const productName = product.name;
+
+      if (product.vendor_id) {
+        await supabase.from('notifications').insert({
+          user_id: product.vendor_id,
+          title: '⚠️ Alerte Litige',
+          message: `Un litige a été ouvert par un client concernant votre produit : ${productName}. Motif : ${reportReason}.`,
+          type: 'report_alert',
+          is_read: false
+        });
+      }
+
+      const { data: admins } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('role', ['admin', 'super_admin']);
+
+      if (admins && admins.length > 0) {
+        const adminNotifications = admins.map((admin) => ({
+          user_id: admin.id,
+          title: '🚨 Nouveau Litige à modérer',
+          message: `Un client a signalé le produit "${productName}" de la boutique ${vendorName}.`,
+          type: 'admin_report_alert',
+          is_read: false
+        }));
+
+        await supabase.from('notifications').insert(adminNotifications);
+      }
+
+      setShowReportModal(false);
+      setReportReason('');
+      setReportDetails('');
+      alert('Signalement envoyé. Notre équipe et le vendeur ont été notifiés.');
+
+    } catch (error: any) {
+      alert('Erreur lors du signalement : ' + error.message);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
     fetchProduct();
   }, [id]);
 
   if (isLoading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 md:w-10 md:h-10 text-blue-600 animate-spin mb-4" />
-        <p className="text-slate-400 font-bold text-[9px] md:text-[10px] uppercase tracking-widest">Chargement de la pièce...</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-6 h-6 text-blue-600 animate-spin mb-3" />
+        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Chargement...</p>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center min-h-[70vh] flex flex-col items-center justify-center">
-        <Info className="w-12 h-12 md:w-16 md:h-16 text-slate-300 mx-auto mb-6" />
-        <h2 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tighter">Produit introuvable</h2>
-        <Link to="/" className="mt-6 md:mt-8 bg-blue-600 text-white px-5 py-2.5 md:px-6 md:py-3 rounded-xl font-bold text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-md flex items-center justify-center gap-2 w-fit mx-auto">
-          <Home className="w-3.5 h-3.5 md:w-4 md:h-4" /> Retour à l'accueil
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center min-h-[60vh] flex flex-col items-center justify-center">
+        <Info className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <h2 className="text-lg font-black text-slate-900 uppercase">Produit introuvable</h2>
+        <Link to="/" className="mt-6 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase flex items-center gap-2 mx-auto w-fit">
+          <Home className="w-3.5 h-3.5" /> Accueil
         </Link>
       </div>
     );
   }
 
-  // 🟢 LOGIQUE BLINDÉE POUR LE NOM DE LA BOUTIQUE
-  const vendorPlan = product?.vendor?.subscription_plan || product?.vendor_plan || 'free';
-  const vendorRole = product?.vendor?.role || product?.vendor_role || 'admin';
-  const rawStoreName = product?.vendor?.store_name || product?.vendor_name;
-
-  const isOfficial = vendorRole === 'admin' || vendorRole === 'super_admin' || !rawStoreName;
-  const storeName = isOfficial ? 'SPACEAUTO24 OFFICIEL' : rawStoreName;
-
-  let commissionRate = 0.10; 
-  if (isOfficial) commissionRate = 0; 
-  else if (vendorPlan === 'premium') commissionRate = 0.01; 
-  else if (vendorPlan === 'pro') commissionRate = 0.05; 
-
-  const basePrice = product?.original_price || product?.price || 0;
-  const finalPrice = Math.round(basePrice + (basePrice * commissionRate));
-
-  const productWithFinalPrice = { ...product, original_price: basePrice, price: finalPrice };
-
+  const vendorRole = product?.vendor?.role || 'admin';
+  const isOfficial = vendorRole === 'admin' || vendorRole === 'super_admin' || !product.vendor_id;
+  const storeName = isOfficial ? 'SPACEAUTO24 OFFICIEL' : (product.vendor?.store_name || 'Boutique Partenaire');
+  const isNew = product?.condition?.toLowerCase() === 'neuf' || product?.is_new === true;
+  const finalPrice = product?.final_price || product?.price || 0;
+  const productWithFinalPrice = { ...product, price: finalPrice };
   const reviewsArray = product?.reviews || [];
   const realTotal = reviewsArray.length;
-  const totalReviews = realTotal > 0 ? realTotal : 3; 
-  const avgRating = realTotal > 0 ? (reviewsArray.reduce((acc: any, curr: any) => acc + (curr.rating || 0), 0) / realTotal) : 4;
 
-  const phoneNumber = product?.vendor?.phone || "2250100000000"; 
-  const whatsappMessage = encodeURIComponent(`Bonjour, je suis intéressé par l'article "${product?.name}" (Réf: ${product?.reference || 'N/A'}) affiché à ${finalPrice.toLocaleString('fr-FR')} FCFA par la boutique ${storeName} sur SpaceAuto24.`);
-  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${whatsappMessage}`; 
-  
-  const initialImageUrl = product?.image_url || fallbackImage;
+  // 🟢 FALLBACK MULTI-CHAMPS POUR LA CATÉGORIE (+ Valeur par défaut "PIÈCE AUTO")
+  const displayCategory =
+    product?.category ||
+    product?.categorie ||
+    product?.type ||
+    product?.type_piece ||
+    product?.family ||
+    'PIÈCE AUTO';
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.onerror = null; 
-    e.currentTarget.src = fallbackImage;
-  };
+  const phoneNumber = product?.vendor?.phone || "2250100000000";
+  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(`Bonjour, je suis intéressé par "${product.name}"${isNew ? ' (NEUF)' : ''} à ${finalPrice.toLocaleString()} FCFA sur SpaceAuto24.`)}`;
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-20 md:pb-24 pt-6 md:pt-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        
-        <div className="flex items-center gap-2.5 md:gap-3 mb-5 md:mb-6">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 md:gap-2 text-slate-500 hover:text-blue-600 font-bold text-[8px] md:text-[10px] uppercase tracking-widest transition-colors bg-white px-3 py-2 md:px-4 md:py-2.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md">
-            <ArrowLeft className="w-3 h-3 md:w-3.5 md:h-3.5" /> Retour
+    <div className="bg-slate-50 min-h-screen pb-16 pt-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4">
+
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-slate-500 hover:text-blue-600 font-bold text-[10px] uppercase bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm transition-all">
+            <ArrowLeft size={12} /> Retour
           </button>
-          <Link to="/" className="flex items-center gap-1.5 md:gap-2 text-slate-500 hover:text-blue-600 font-bold text-[8px] md:text-[10px] uppercase tracking-widest transition-colors bg-white px-3 py-2 md:px-4 md:py-2.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md">
-            <Home className="w-3 h-3 md:w-3.5 md:h-3.5" /> Accueil
-          </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-          
-          <div className="lg:col-span-6 xl:col-span-7 flex flex-col gap-6 md:gap-8">
-            
-            {/* BLOC IMAGE PREMIUM */}
-            <div className="bg-white p-4 md:p-14 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 flex items-center justify-center relative overflow-hidden group min-h-[250px] md:min-h-[400px]">
-              <div className="absolute inset-0 bg-slate-50/50 group-hover:bg-transparent transition-colors duration-500"></div>
-              
-              <img 
-                src={initialImageUrl} 
-                alt={product?.name || "Produit"} 
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-7 flex flex-col gap-5">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-center relative overflow-hidden group min-h-[250px] md:min-h-[350px]">
+              <img
+                src={product.image_url || fallbackImage}
+                alt={product.name}
                 onError={handleImageError}
-                className="relative z-10 max-h-[220px] md:max-h-[500px] w-full object-contain mix-blend-darken drop-shadow-2xl hover:scale-105 transition-transform duration-700" 
+                className="relative z-10 max-h-[200px] md:max-h-[280px] w-auto object-contain mix-blend-darken hover:scale-105 transition-transform duration-700"
               />
-              
-              {/* 🟢 NOM DE LA BOUTIQUE (Réduit pour mobile) */}
-              <div className={`absolute top-3 left-3 md:top-6 md:left-6 z-30 backdrop-blur-md text-white px-2.5 py-1 md:px-4 md:py-2 rounded-lg md:rounded-xl flex items-center gap-1.5 shadow-xl border ${isOfficial ? 'bg-gradient-to-r from-blue-900 via-slate-900 to-black border-blue-500/50' : 'bg-slate-900/90 border-white/10'}`}>
-                {isOfficial ? <Crown className="w-3 h-3 md:w-4 md:h-4 text-amber-400" /> : <Store className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />}
-                <span className={`text-[7.5px] md:text-[9px] font-[1000] uppercase tracking-widest ${isOfficial ? 'text-blue-100' : 'text-white'}`}>
-                  {storeName}
-                </span>
-              </div>
 
-              {/* 🟢 BADGE VISCOSITÉ (Réduit pour mobile) */}
-              {product?.viscosity && (
-                <div className="absolute top-3 right-3 md:top-6 md:right-6 z-30 bg-blue-600 text-white px-2.5 py-1 md:px-4 md:py-2 rounded-lg md:rounded-xl flex items-center gap-1.5 shadow-lg">
-                  <Droplets className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  <span className="text-[7.5px] md:text-[9px] font-black uppercase tracking-widest">{product.viscosity}</span>
-                </div>
-              )}
+              <div className={`absolute top-2 left-2 z-30 backdrop-blur-md text-white px-2 py-1 rounded-md flex items-center gap-1 shadow-md border ${isOfficial ? 'bg-gradient-to-r from-blue-900 to-black border-blue-500/50' : 'bg-slate-900/90 border-white/10'}`}>
+                {isOfficial ? <Crown size={10} className="text-amber-400" /> : <Store size={10} className="text-blue-400" />}
+                <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider">{storeName}</span>
+              </div>
             </div>
 
-            {/* BLOC AVIS CLIENTS (Bureau) */}
-            <div className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 shadow-sm hidden lg:block">
-              <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-3">
-                <div className="w-6 h-6 md:w-7 md:h-7 rounded-lg bg-amber-500 flex items-center justify-center shadow-md shadow-amber-500/20">
-                  <Star className="w-3.5 h-3.5 md:w-4 md:h-4 text-white fill-white" />
+            <div className="hidden lg:flex flex-col gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                  <h3 className="text-xs font-black text-slate-900 uppercase">Avis Clients ({realTotal})</h3>
+                  <button
+                    onClick={() => setShowReviewModal(true)}
+                    className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase hover:bg-blue-600 hover:text-white transition-all"
+                  >
+                    <PenLine size={12} /> Rédiger un avis
+                  </button>
                 </div>
-                <h3 className="text-sm md:text-base font-black text-slate-900 uppercase tracking-tight">Avis Clients ({totalReviews})</h3>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {(realTotal > 0 ? reviewsArray : [1, 2]).map((review: any, index: number) => (
-                  <div key={index} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <UserCircle2 className="w-6 h-6 md:w-7 md:h-7 text-slate-300" />
-                        <div>
-                          <p className="text-[9px] md:text-[10px] font-black text-slate-900 uppercase">{review.user?.store_name || "Client Vérifié"}</p>
+                <div className="space-y-3">
+                  {(realTotal > 0 ? reviewsArray : [{}, {}]).map((review: any, index: number) => (
+                    <div key={index} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <UserCircle2 className="text-slate-300" size={20} />
+                          <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-900">
+                            {review.profiles?.store_name || "Client Vérifié"}
+                          </p>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map(s => <Star key={s} size={9} fill={s <= (review.rating || 4) ? "#FACC15" : "none"} className={s <= (review.rating || 4) ? "text-amber-400" : "text-slate-200"} />)}
                         </div>
                       </div>
-                      <div className="flex bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} size={10} className={s <= (review.rating || 4) ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-50"} />
-                        ))}
-                      </div>
+                      <p className="text-[10px] md:text-[11px] text-slate-600 leading-relaxed">{review.comment || "Produit conforme à la description, je recommande vivement."}</p>
                     </div>
-                    <p className="text-[11px] md:text-xs font-medium text-slate-600 line-clamp-2 md:line-clamp-3">
-                      {review.comment || "Super qualité ! La pièce correspond exactement à ce que je cherchais. Livraison rapide."}
-                    </p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
 
+              {!isOfficial && (
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="w-full bg-white border border-red-200 border-dashed text-red-500 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all group"
+                >
+                  <AlertTriangle size={14} className="group-hover:scale-110 transition-transform" />
+                  Signaler un litige avec le vendeur
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="lg:col-span-6 xl:col-span-5 flex flex-col">
-            
-            <span className="text-[7.5px] md:text-[9px] font-black w-fit text-emerald-600 uppercase tracking-widest flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 md:px-3 md:py-1.5 rounded-md md:rounded-lg border border-emerald-100 shadow-sm mb-3 md:mb-4">
-              <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5" /> En Stock
-            </span>
-
-            <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter leading-tight mb-3 md:mb-4 uppercase">
-              {product?.name || "Nom du produit"}
-            </h1>
-
-            <div className="flex flex-col gap-2 md:gap-3 mb-5 md:mb-6">
-              {(product?.brand || product?.model || product?.reference) && (
-                <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-                  {product.brand && (
-                    <div className="flex items-center gap-1 bg-slate-800 border border-slate-900 text-white text-[7px] md:text-[9px] font-black px-1.5 py-0.5 md:px-2 md:py-1 rounded-md uppercase tracking-widest shadow-sm">
-                      <span>{product.brand}</span>
-                    </div>
-                  )}
-                  {product.reference && (
-                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 text-slate-600 text-[7px] md:text-[9px] font-black px-1.5 py-0.5 md:px-2 md:py-1 rounded-md uppercase tracking-widest shadow-sm">
-                      <Hash size={10} className="text-slate-400" /> 
-                      <span>RÉF: <span className="text-slate-800">{product.reference}</span></span>
-                    </div>
-                  )}
-                  {product.model && (
-                    <div className="flex items-center gap-1 bg-blue-50/50 border border-blue-100 text-blue-700 text-[7px] md:text-[9px] font-black px-1.5 py-0.5 md:px-2 md:py-1 rounded-md uppercase tracking-widest shadow-sm">
-                      <Car size={10} className="text-blue-500" /> 
-                      {product.model}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center gap-1.5 md:gap-2 bg-white px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border border-slate-100 w-fit shadow-sm">
-                <div className="flex items-center">
-                  {[1, 2, 3, 4, 5].map((star) => {
-                    const safeRating = Math.round(Number(avgRating) || 0);
-                    const isFilled = star <= safeRating && safeRating > 0;
-                    return (
-                      <Star 
-                        key={star} 
-                        size={10} 
-                        strokeWidth={isFilled ? 1 : 1.5}
-                        color={isFilled ? "#FACC15" : "#cbd5e1"} 
-                        fill={isFilled ? "#FACC15" : "#f1f5f9"} 
-                        className="mr-[1px]" 
-                      />
-                    );
-                  })}
-                </div>
-                <div className="w-px h-2.5 md:h-3 bg-slate-200 mx-0.5 md:mx-1"></div>
-                <span className="text-[7px] md:text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  Note Globale
+          <div className="lg:col-span-5 flex flex-col">
+            <div className="flex flex-col gap-1.5 mb-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[8px] font-black text-emerald-600 uppercase bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 flex items-center gap-1">
+                  <CheckCircle2 size={10} /> Disponible
                 </span>
+                {isNew && (
+                  <span className="text-[8px] font-black uppercase px-2.5 py-1 rounded-md border bg-blue-50 text-blue-600 border-blue-100">
+                    NEUF
+                  </span>
+                )}
               </div>
-            </div>
-            
-            <div className="mb-5 md:mb-6 bg-white p-3 md:p-5 rounded-xl md:rounded-2xl border border-slate-200 shadow-sm inline-block w-fit">
-               <p className="text-xl md:text-3xl font-black text-blue-600 tracking-tighter flex items-baseline gap-1.5">
-                 {finalPrice.toLocaleString('fr-FR')} <span className="text-[10px] md:text-sm text-slate-400">FCFA</span>
-               </p>
+              {/* 🟢 CATÉGORIE AFFICHÉE EN DESSOUS AVEC FALLBACK */}
+              {displayCategory && (
+                <span className="text-[8px] md:text-[9px] font-bold text-slate-600 uppercase bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 flex items-center gap-1 w-fit mt-1">
+                  <Tag size={10} /> {displayCategory}
+                </span>
+              )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2.5 md:gap-3 mb-5 md:mb-6">
-              <button 
-                onClick={() => {
-                  addToCart(productWithFinalPrice);
-                  navigate('/checkout');
-                }}
-                className="flex-grow py-2.5 md:py-4 rounded-lg md:rounded-xl font-black text-[8px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5 md:gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95 bg-blue-600 text-white hover:bg-slate-900"
-              >
-                <ShoppingCart className="w-3 h-3 md:w-4 h-4" /> Acheter Maintenant
+            <h1 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tighter mb-3 leading-tight">{product.name}</h1>
+
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {product.brand && <span className="bg-slate-900 text-white text-[8px] md:text-[9px] font-bold px-2.5 py-1 rounded uppercase">{product.brand}</span>}
+              {product.reference && <span className="bg-white border border-slate-200 text-slate-500 text-[8px] md:text-[9px] font-bold px-2.5 py-1 rounded uppercase">RÉF: {product.reference}</span>}
+              {product.model && <span className="bg-blue-50 text-blue-700 text-[8px] md:text-[9px] font-bold px-2.5 py-1 rounded uppercase flex items-center gap-1"><Car size={10} /> {product.model}</span>}
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
+               <div className="flex items-baseline gap-1.5 mb-0.5">
+                 <span className="text-2xl md:text-3xl font-black text-blue-600 tracking-tighter">{finalPrice.toLocaleString('fr-FR')}</span>
+                 <span className="text-[10px] font-bold text-slate-400">FCFA</span>
+               </div>
+               <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">TVA incluse + Frais de service</p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 mb-6">
+              <button onClick={() => { addToCart(productWithFinalPrice); navigate('/checkout'); }} className="w-full bg-blue-600 hover:bg-slate-900 text-white py-3 md:py-4 rounded-xl font-black text-[10px] md:text-[11px] uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-1.5">
+                <ShoppingCart size={16} /> Acheter maintenant
               </button>
-              
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="sm:w-1/3 bg-white text-emerald-600 border border-emerald-100 md:border-2 py-2.5 md:py-4 rounded-lg md:rounded-xl font-black text-[8px] md:text-[10px] uppercase flex items-center justify-center gap-1.5 md:gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm">
-                <MessageCircle className="w-3 h-3 md:w-4 h-4" /> WhatsApp
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="w-full bg-white border-2 border-emerald-100 text-emerald-600 py-3 md:py-4 rounded-xl font-black text-[10px] md:text-[11px] uppercase flex items-center justify-center gap-1.5 hover:bg-emerald-50 transition-all">
+                <MessageCircle size={16} /> WhatsApp
               </a>
             </div>
 
-            <div className="space-y-2.5 md:space-y-3 mb-5 md:mb-6">
-              <div className="bg-white p-3.5 md:p-5 rounded-xl md:rounded-2xl border border-slate-200 shadow-sm">
-                <h4 className="font-black text-slate-900 uppercase tracking-widest text-[7.5px] md:text-[9px] mb-2.5 md:mb-3 flex items-center gap-1.5">
-                  <CreditCard className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-600" /> Paiements acceptés
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {['Wave', 'Orange', 'Moov', 'MTN'].map((operator) => (
-                    <div key={operator} className="h-6 md:h-9 px-2 md:px-2.5 bg-slate-50 rounded-md md:rounded-lg border border-slate-100 flex items-center justify-center">
-                      <span className="text-[7px] md:text-[8px] font-bold text-slate-500 uppercase tracking-wider">{operator}</span>
-                    </div>
-                  ))}
-                  <div className="h-6 w-8 md:h-9 md:w-10 bg-slate-900 rounded-md md:rounded-lg flex items-center justify-center text-white shadow-sm" title="Paiement à la livraison">
-                    <Banknote className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900 p-3.5 md:p-5 rounded-xl md:rounded-2xl flex items-center gap-2.5 md:gap-3 text-white shadow-xl">
-                <div className="bg-white/10 p-2 md:p-2.5 rounded-lg md:rounded-xl shrink-0">
-                  <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <h4 className="font-black uppercase tracking-widest text-[8px] md:text-[10px] mb-0.5">Garantie Authenticité</h4>
-                  <p className="text-[9px] md:text-[11px] font-medium text-slate-300 leading-relaxed">Produit 100% original. Qualité vérifiée.</p>
-                </div>
+            <div className="bg-slate-900 p-4 rounded-xl text-white flex items-center gap-3 shadow-lg">
+              <div className="bg-white/10 p-2.5 rounded-lg"><ShieldCheck className="text-emerald-400" size={20} /></div>
+              <div>
+                <h4 className="font-black text-[9px] md:text-[10px] uppercase tracking-wider">Garantie SpaceAuto24</h4>
+                <p className="text-[9px] md:text-[10px] text-slate-400">Pièce certifiée conforme par nos experts.</p>
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* --- SECTION HORIZONTALE : FICHE TECHNIQUE & DESCRIPTION --- */}
-        <div className="mt-8 lg:mt-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            
-            <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200 shadow-sm p-4 md:p-6 h-fit">
-               <h3 className="text-[8.5px] md:text-[10px] font-black uppercase tracking-widest mb-4 md:mb-5 text-slate-400 border-b border-slate-100 pb-2.5 md:pb-3 flex items-center gap-1.5 md:gap-2">
-                 <Settings2 className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-400" /> Caractéristiques
-               </h3>
-               <ul className="space-y-2.5 md:space-y-3">
-                 <li className="flex items-start gap-2 text-[9px] md:text-[11px] font-bold text-slate-700 uppercase">
-                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Qualité Garantie
-                 </li>
-                 <li className="flex items-start gap-2 text-[9px] md:text-[11px] font-bold text-slate-700 uppercase">
-                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Installation Rapide
-                 </li>
-                 <li className="flex items-start gap-2 text-[9px] md:text-[11px] font-bold text-slate-700 uppercase">
-                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Retrait possible
-                 </li>
-               </ul>
+        <div className="block lg:hidden mt-5 flex flex-col gap-3">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="text-xs font-black text-slate-900 uppercase">Avis ({realTotal})</h3>
+              <button
+                onClick={() => setShowReviewModal(true)}
+                className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase hover:bg-blue-600 hover:text-white transition-all"
+              >
+                <PenLine size={12} /> Rédiger
+              </button>
             </div>
-
-            <div className="md:col-span-2 bg-gradient-to-br from-slate-900 to-[#111625] p-5 md:p-8 rounded-2xl md:rounded-3xl shadow-xl border border-slate-800 text-white relative overflow-hidden">
-               <div className="absolute -top-10 -right-10 opacity-5">
-                 <Wrench className="w-32 h-32 md:w-40 md:w-40" />
-               </div>
-               
-               <div className="relative z-10">
-                 <h4 className="text-[8.5px] md:text-[10px] font-black uppercase tracking-widest text-blue-400 mb-3 md:mb-4 border-b border-white/10 pb-2.5 md:pb-3 flex items-center gap-1.5 md:gap-2">
-                   <Info className="w-3 h-3 md:w-3.5 md:h-3.5" /> Détails de la pièce
-                 </h4>
-                 <div className="prose prose-sm md:prose-base prose-invert max-w-none">
-                   <p className="text-slate-300 text-[10px] md:text-sm leading-relaxed font-medium">
-                     {product?.description || "Les détails techniques complets de cette pièce sont actuellement en cours de rédaction par notre équipe d'experts. Pour toute question de compatibilité, n'hésitez pas à nous contacter directement sur WhatsApp."}
-                   </p>
-                 </div>
-               </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* 🟢 BLOC AVIS CLIENTS (Mobile) */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mt-5 block lg:hidden">
-            <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2.5">
-              <div className="w-6 h-6 rounded-md bg-amber-500 flex items-center justify-center shadow-md shadow-amber-500/20">
-                <Star className="w-3 h-3 text-white fill-white" />
-              </div>
-              <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Avis Clients ({totalReviews})</h3>
-            </div>
-
-            <div className="flex flex-col gap-2.5">
-              {(realTotal > 0 ? reviewsArray : [1, 2]).map((review: any, index: number) => (
-                <div key={index} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col">
+            <div className="space-y-3">
+              {(realTotal > 0 ? reviewsArray : [{}, {}]).map((review: any, index: number) => (
+                <div key={index} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
-                      <UserCircle2 className="w-5 h-5 text-slate-300" />
-                      <div>
-                        <p className="text-[8px] font-black text-slate-900 uppercase">{review.user?.store_name || "Client Vérifié"}</p>
-                      </div>
+                      <UserCircle2 className="text-slate-300" size={20} />
+                      <p className="text-[9px] font-black uppercase text-slate-900">
+                        {review.profiles?.store_name || "Client Vérifié"}
+                      </p>
                     </div>
-                    <div className="flex bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-100">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} size={8} className={s <= (review.rating || 4) ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-50"} />
-                      ))}
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map(s => <Star key={s} size={9} fill={s <= (review.rating || 4) ? "#FACC15" : "none"} className={s <= (review.rating || 4) ? "text-amber-400" : "text-slate-200"} />)}
                     </div>
                   </div>
-                  <p className="text-[9px] font-medium text-slate-600 line-clamp-3 leading-relaxed">
-                    {review.comment || "Super qualité ! La pièce correspond exactement à ce que je cherchais. Livraison rapide."}
-                  </p>
+                  <p className="text-[10px] text-slate-600 leading-relaxed">{review.comment || "Produit conforme à la description, je recommande vivement."}</p>
                 </div>
               ))}
             </div>
+          </div>
+
+          {!isOfficial && (
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="w-full bg-white border border-red-200 border-dashed text-red-500 py-3 rounded-2xl font-bold text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-red-50 transition-all active:scale-95"
+            >
+              <AlertTriangle size={14} /> Signaler un litige avec ce vendeur
+            </button>
+          )}
         </div>
 
+        {/* 🟢 ON PASSE displayCategory AU LIEU DE product.category */}
+        <RelatedVendorProducts
+          vendorId={product?.vendor_id}
+          currentProductId={product?.id}
+          category={displayCategory}
+        />
+
       </div>
+
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3">
+          <div className="bg-white rounded-xl p-4 max-w-xs w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-black text-slate-900 uppercase">Rédiger un avis</h3>
+              <button onClick={() => setShowReviewModal(false)} className="p-1 hover:bg-slate-100 rounded-md">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Note</label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <button key={s} onClick={() => setReviewRating(s)} className="p-0">
+                      <Star size={20} fill={s <= reviewRating ? "#FACC15" : "none"} className={s <= reviewRating ? "text-amber-400" : "text-slate-200"} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Commentaire</label>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Partagez votre expérience..."
+                  rows={3}
+                  className="w-full border border-slate-200 rounded-md p-2 text-[11px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                />
+              </div>
+
+              <button
+                onClick={handleSubmitReview}
+                disabled={isSubmittingReview || !reviewComment.trim()}
+                className="w-full bg-blue-600 hover:bg-slate-900 disabled:bg-slate-300 text-white py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-1"
+              >
+                {isSubmittingReview ? <Loader2 className="w-3 h-3 animate-spin" /> : <PenLine size={12} />}
+                Publier l'avis
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3">
+          <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="bg-red-100 p-1.5 rounded-lg">
+                  <AlertTriangle size={16} className="text-red-600" />
+                </div>
+                <h3 className="text-xs font-black text-slate-900 uppercase">Signaler un litige</h3>
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="p-1 hover:bg-slate-100 rounded-md">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1.5">Motif du signalement</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-[11px] focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none"
+                >
+                  <option value="">Sélectionner un motif</option>
+                  <option value="produit_non_conforme">Produit non conforme / Contrefaçon</option>
+                  <option value="produit_defectueux">Produit défectueux</option>
+                  <option value="mauvaise_communication">Mauvaise communication</option>
+                  <option value="arnaque">Tentative d'arnaque / Fraude</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1.5">Détails de l'incident</label>
+                <textarea
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Décrivez précisément le problème rencontré avec ce vendeur..."
+                  rows={3}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-[11px] focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
+                />
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-[9px] text-amber-800 leading-relaxed">
+                  <strong>Important :</strong> Notre équipe technique examine chaque signalement sous 24h. Tout signalement abusif pourra entraîner la suspension de votre compte.
+                </p>
+              </div>
+
+              <button
+                onClick={handleSubmitReport}
+                disabled={isSubmittingReport || !reportReason.trim()}
+                className="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/20"
+              >
+                {isSubmittingReport ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag size={14} />}
+                Envoyer le signalement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

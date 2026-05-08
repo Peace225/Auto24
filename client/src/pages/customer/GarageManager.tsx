@@ -95,7 +95,7 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
   return (
     <div className="space-y-4 md:space-y-8 animate-in fade-in duration-500 pb-10">
       
-      {/* 🟢 HEADER GARAGE COMPACT */}
+      {/* HEADER GARAGE COMPACT */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
         <h2 className="text-lg md:text-xl font-[1000] text-slate-900 uppercase italic tracking-tighter">Mon Garage Privé</h2>
         <button 
@@ -117,7 +117,6 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
           {vehicles.map((v) => (
             <div key={v.id} className="bg-white border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 relative group overflow-hidden shadow-sm hover:shadow-xl transition-all flex flex-col min-h-[220px] md:min-h-[300px]">
               
-              {/* Bouton Supprimer */}
               <button 
                 onClick={() => handleDeleteVehicle(v.id)}
                 disabled={isDeleting === v.id}
@@ -126,7 +125,6 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
                 {isDeleting === v.id ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin text-red-500" /> : <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />}
               </button>
 
-              {/* Image background */}
               {v.image_url ? (
                 <div className="absolute top-0 right-0 w-28 h-28 md:w-40 md:h-40 opacity-20 group-hover:opacity-100 transition-all duration-500 z-0 pointer-events-none mask-image-gradient">
                   <img src={v.image_url} alt={`${v.make} ${v.model}`} className="w-full h-full object-cover object-center mix-blend-multiply" />
@@ -154,7 +152,13 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
                 <button 
                   onClick={() => {
                     if(setShopVehicleFilter && setActiveTab) {
-                      setShopVehicleFilter({ id: v.id, name: `${v.make} ${v.model}` });
+                      // 🟢 ON ENVOIE TOUTES LES INFOS DU VÉHICULE AU CATALOGUE
+                      setShopVehicleFilter({ 
+                        id: v.id, 
+                        make: v.make, 
+                        model: v.model,
+                        name: `${v.make} ${v.model}` 
+                      });
                       setActiveTab('shop');
                     } else {
                       toast.error("Catalogue non connecté.");
@@ -170,7 +174,7 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
         </div>
       )}
 
-      {/* 🟢 MODAL D'AJOUT DE VÉHICULE COMPACTE */}
+      {/* MODAL D'AJOUT DE VÉHICULE COMPACTE */}
       {showAddForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-2xl md:rounded-[3rem] p-5 md:p-8 shadow-2xl relative animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -195,7 +199,6 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
 
             <form onSubmit={handleAddVehicle} className="space-y-3 md:space-y-4">
               
-              {/* Zone d'upload d'image miniaturisée */}
               <div className="w-full">
                 <label className="block text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Photo (Optionnel)</label>
                 <div className="relative border-2 border-dashed border-slate-200 rounded-xl p-3 md:p-4 hover:bg-slate-50 hover:border-blue-400 transition-all text-center cursor-pointer overflow-hidden group">
