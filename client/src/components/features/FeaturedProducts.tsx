@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useCartStore } from '../../store/useCartStore';
 import { toast } from 'react-hot-toast';
-import { getPublicPrice } from '../../utils/pricing'; // 🟢 1. Import de la fonction globale
+import { getPublicPrice } from '../../utils/pricing';
 
 export default function FeaturedProducts() {
   const navigate = useNavigate();
@@ -41,7 +41,6 @@ export default function FeaturedProducts() {
         const vendorPlan = item.vendor?.subscription_plan || 'free';
         const vendorRole = item.vendor?.role || 'vendor';
 
-        // 🟢 2. Calcul du prix final avec la fonction globale (Paliers dynamiques)
         const basePrice = item.price || 0;
         const finalPrice = getPublicPrice(basePrice, vendorRole);
 
@@ -117,27 +116,29 @@ export default function FeaturedProducts() {
   };
 
   return (
-    <section className="bg-[#F8FAFC] py-16 md:py-28 overflow-hidden">
+    <section className="bg-[#F8FAFC] py-12 md:py-28 overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* HEADER LOGO-STYLE */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-8">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-blue-600 font-black text-[10px] uppercase tracking-[0.3em]">
-              <TrendingUp size={14} />
+        {/* HEADER RÉDUIT SUR MOBILE */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 md:mb-12 gap-5 md:gap-8">
+          <div className="space-y-2 md:space-y-4">
+            <div className="flex items-center gap-2 text-blue-600 font-black text-[8px] md:text-[10px] uppercase tracking-[0.3em]">
+              <TrendingUp size={12} className="md:w-[14px] md:h-[14px]" />
               <span>Selection Premium Abidjan</span>
             </div>
-            <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter uppercase leading-[0.85]">
-              Le Meilleur <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-700">
+            {/* 🟢 Taille de texte réduite sur mobile (text-2xl) et normale sur desktop (md:text-5xl) */}
+            <h2 className="text-2xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-[0.9]">
+              Le Meilleur <br className="hidden md:block" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-700 md:ml-0 ml-1">
                 du catalogue
               </span>
             </h2>
           </div>
           
-          <Link to="/catalog" className="group bg-slate-900 px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-white hover:bg-blue-600 transition-all duration-500 shadow-2xl shadow-slate-900/20 flex items-center gap-3 w-fit active:scale-95">
+          {/* 🟢 Bouton réduit sur mobile (py-3, px-6, text-[9px]) */}
+          <Link to="/catalog" className="group bg-slate-900 px-6 py-3 md:px-8 md:py-4 rounded-xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.2em] text-white hover:bg-blue-600 transition-all duration-500 shadow-lg md:shadow-xl flex items-center justify-center gap-2 md:gap-3 w-full md:w-fit active:scale-95">
             Voir tout le stock 
-            <ArrowRight size={16} className="group-hover:translate-x-1.5 transition-transform" />
+            <ArrowRight size={14} className="md:w-4 md:h-4 group-hover:translate-x-1.5 transition-transform" />
           </Link>
         </div>
 
@@ -153,16 +154,16 @@ export default function FeaturedProducts() {
               const finalPrice = product.final_price;
 
               return (
-                <div key={product.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex flex-col group relative h-full">
+                <div key={product.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex flex-col group relative h-full">
                   
                   {/* BOUTON FAVORI */}
                   <button
                     onClick={(e) => toggleFavorite(product.id, e)}
-                    className="absolute top-2 left-2 z-30 p-2.5 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-100 hover:scale-110 active:scale-90 transition-all duration-300"
+                    className="absolute top-2 left-2 z-30 p-2 md:p-2.5 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-100 hover:scale-110 active:scale-90 transition-all duration-300"
                   >
                     <Heart
-                      size={14}
-                      className={`transition-all duration-500 ${
+                      size={12}
+                      className={`md:w-3.5 md:h-3.5 transition-all duration-500 ${
                         favorites.includes(product.id) ? 'fill-red-500 text-red-500' : 'text-slate-300 group-hover:text-red-400'
                       }`}
                     />
@@ -170,59 +171,61 @@ export default function FeaturedProducts() {
 
                   <VendorBadge name={product.vendor_name} role={product.vendor_role} />
                   
-                  {/* IMAGE */}
-                  <Link to={`/product/${product.id}`} className="relative h-40 md:h-52 bg-slate-50 flex items-center justify-center p-6 overflow-hidden">
-                    <img src={product.image} className="max-h-full object-contain mix-blend-darken group-hover:scale-110 transition-transform duration-700" alt={product.name} />
+                  {/* IMAGE CARRÉE (aspect-square) */}
+                  <Link to={`/product/${product.id}`} className="relative aspect-square bg-slate-50 flex items-center justify-center p-4 md:p-6 overflow-hidden">
+                    <img 
+                      src={product.image} 
+                      className="w-full h-full object-contain mix-blend-darken group-hover:scale-110 transition-transform duration-700" 
+                      alt={product.name} 
+                    />
                   </Link>
 
-                  {/* CONTENU DE LA CARTE INLINE */}
-                  <div className="p-4 md:p-6 flex flex-col flex-1">
+                  {/* CONTENU */}
+                  <div className="p-3 md:p-5 flex flex-col flex-1">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 truncate max-w-[100px]">
+                      <span className="text-[7px] md:text-[8px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-1.5 md:px-2 py-0.5 rounded-md border border-blue-100 truncate max-w-[80px] md:max-w-[100px]">
                         {product.brand || 'Premium'}
                       </span>
                       <div className="flex items-center gap-1">
-                        <Star size={10} className="fill-amber-400 text-amber-400" />
-                        <span className="text-[9px] font-black text-slate-700">{product.avgRating.toFixed(1)}</span>
+                        <Star size={8} className="md:w-2.5 md:h-2.5 fill-amber-400 text-amber-400" />
+                        <span className="text-[8px] md:text-[9px] font-black text-slate-700">{product.avgRating.toFixed(1)}</span>
                       </div>
                     </div>
 
-                    <h3 className="text-[11px] font-[1000] text-slate-900 uppercase line-clamp-2 mb-3 leading-tight">
+                    <h3 className="text-[10px] md:text-[11px] font-[1000] text-slate-900 uppercase line-clamp-2 mb-2 md:mb-3 leading-tight min-h-[2rem]">
                       {product.name}
                     </h3>
 
-                    <div className="space-y-1 mb-4 mt-auto">
-                      <p className="text-[8px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
-                        <CarFront size={10} className="text-slate-300 shrink-0" /> Modèle: <span className="text-slate-600 truncate">{product.model || 'Standard'}</span>
+                    <div className="space-y-0.5 md:space-y-1 mb-3 md:mb-4 mt-auto">
+                      <p className="text-[7px] md:text-[8px] font-bold text-slate-400 uppercase flex items-center gap-1 md:gap-1.5">
+                        <CarFront size={8} className="md:w-2.5 md:h-2.5 text-slate-300 shrink-0" /> Modèle: <span className="text-slate-600 truncate">{product.model || 'Standard'}</span>
                       </p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
-                        <Hash size={10} className="text-slate-300 shrink-0" /> Réf: <span className="text-slate-600 font-mono tracking-tighter">{product.reference || 'REF-AUTO'}</span>
+                      <p className="text-[7px] md:text-[8px] font-bold text-slate-400 uppercase flex items-center gap-1 md:gap-1.5">
+                        <Hash size={8} className="md:w-2.5 md:h-2.5 text-slate-300 shrink-0" /> Réf: <span className="text-slate-600 font-mono tracking-tighter">{product.reference || 'REF-AUTO'}</span>
                       </p>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+                    <div className="pt-3 md:pt-4 border-t border-slate-50 flex items-center justify-between">
                       <div className="flex flex-col">
-                        {/* 🟢 3. Affichage du prix d'origine barré s'il y a une commission */}
                         {basePrice !== finalPrice && (
-                          <span className="text-[8px] text-slate-300 line-through font-bold mb-0.5">
+                          <span className="text-[7px] md:text-[8px] text-slate-300 line-through font-bold mb-0.5">
                             {basePrice.toLocaleString()} CFA
                           </span>
                         )}
-                        <p className="text-sm md:text-xl font-[1000] text-slate-900 italic tracking-tighter uppercase leading-none">
-                          {finalPrice.toLocaleString()} <span className="text-[9px] text-blue-600 not-italic font-black">CFA</span>
+                        <p className="text-sm md:text-lg font-black text-slate-900 tracking-tighter uppercase leading-none">
+                          {finalPrice.toLocaleString()} <span className="text-[7px] md:text-[8px] text-blue-600 font-black">CFA</span>
                         </p>
                       </div>
                       
-                      {/* 🟢 AJOUT AU PANIER AVEC PRIX FINAL SÉCURISÉ */}
                       <button 
                         onClick={(e) => { 
                           e.preventDefault(); 
                           addToCart({ ...product, price: finalPrice, original_price: basePrice }); 
                           toast.success("Ajouté au panier");
                         }}
-                        className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-xl active:scale-95"
+                        className="p-2 md:p-2.5 bg-slate-900 text-white rounded-lg md:rounded-xl hover:bg-blue-600 transition-all shadow-md md:shadow-lg active:scale-95"
                       >
-                        <ShoppingCart size={16} />
+                        <ShoppingCart size={12} className="md:w-3.5 md:h-3.5" />
                       </button>
                     </div>
                   </div>
