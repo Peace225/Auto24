@@ -7,6 +7,7 @@ import {
 import { useCartStore } from '../store/useCartStore';
 import { supabase } from '../lib/supabase';
 import RelatedVendorProducts from '../components/features/RelatedVendorProducts';
+import { getPublicPrice } from '../utils/pricing'; // 🟢 1. Import de la logique globale
 
 export default function ProductDetails() {
   const { id } = useParams<{ id: string }>();
@@ -120,7 +121,6 @@ export default function ProductDetails() {
     setIsSubmittingReview(false);
   };
 
-  // 🟢 LOGIQUE DE SIGNALEMENT MULTI-DESTINATAIRES
   const handleSubmitReport = async () => {
     if (!user) {
       navigate('/login');
@@ -218,12 +218,21 @@ export default function ProductDetails() {
   const isOfficial = vendorRole === 'admin' || vendorRole === 'super_admin' || !product.vendor_id;
   const storeName = isOfficial ? 'SPACEAUTO24 OFFICIEL' : (product.vendor?.store_name || 'Boutique Partenaire');
   const isNew = product?.condition?.toLowerCase() === 'neuf' || product?.is_new === true;
-  const finalPrice = product?.final_price || product?.price || 0;
-  const productWithFinalPrice = { ...product, price: finalPrice };
+  
+  // 🟢 2. CALCUL DES PRIX PAR PALIERS
+  const basePrice = product?.original_price || product?.price || 0;
+  const finalPrice = getPublicPrice(basePrice);
+  
+  // On prépare l'objet pour le panier avec les deux infos
+  const productWithFinalPrice = { 
+    ...product, 
+    price: finalPrice, 
+    original_price: basePrice 
+  };
+
   const reviewsArray = product?.reviews || [];
   const realTotal = reviewsArray.length;
 
-  // 🟢 FALLBACK MULTI-CHAMPS POUR LA CATÉGORIE (+ Valeur par défaut "PIÈCE AUTO")
   const displayCategory =
     product?.category ||
     product?.categorie ||
@@ -233,7 +242,7 @@ export default function ProductDetails() {
     'PIÈCE AUTO';
 
   const phoneNumber = product?.vendor?.phone || "2250100000000";
-  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(`Bonjour, je suis intéressé par "${product.name}"${isNew ? ' (NEUF)' : ''} à ${finalPrice.toLocaleString()} FCFA sur SpaceAuto24.`)}`;
+  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(`Bonjour, je suis intéressé par "${product.name}"${isNew ? ' (NEUF)' : ''} affiché à ${finalPrice.toLocaleString()} FCFA sur SpaceAuto24.`)}`;
 
   return (
     <div className="bg-slate-50 min-h-screen pb-16 pt-4">
@@ -316,7 +325,6 @@ export default function ProductDetails() {
                   </span>
                 )}
               </div>
-              {/* 🟢 CATÉGORIE AFFICHÉE EN DESSOUS AVEC FALLBACK */}
               {displayCategory && (
                 <span className="text-[8px] md:text-[9px] font-bold text-slate-600 uppercase bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 flex items-center gap-1 w-fit mt-1">
                   <Tag size={10} /> {displayCategory}
@@ -333,11 +341,19 @@ export default function ProductDetails() {
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
-               <div className="flex items-baseline gap-1.5 mb-0.5">
-                 <span className="text-2xl md:text-3xl font-black text-blue-600 tracking-tighter">{finalPrice.toLocaleString('fr-FR')}</span>
-                 <span className="text-[10px] font-bold text-slate-400">FCFA</span>
+               {/* 🟢 3. AFFICHAGE DYNAMIQUE DU PRIX AVEC BARRAGE SI BESOIN */}
+               <div className="flex flex-col mb-1">
+                 {basePrice !== finalPrice && (
+                   <span className="text-xs text-slate-400 line-through font-bold mb-0.5">
+                     {basePrice.toLocaleString('fr-FR')} CFA
+                   </span>
+                 )}
+                 <div className="flex items-baseline gap-1.5">
+                   <span className="text-2xl md:text-3xl font-black text-blue-600 tracking-tighter">{finalPrice.toLocaleString('fr-FR')}</span>
+                   <span className="text-[10px] font-bold text-slate-400 uppercase">FCFA</span>
+                 </div>
                </div>
-               <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">TVA incluse + Frais de service</p>
+               <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">TVA incluse + Frais de service sécurisés</p>
             </div>
 
             <div className="flex flex-col gap-2.5 mb-6">
@@ -400,7 +416,6 @@ export default function ProductDetails() {
           )}
         </div>
 
-        {/* 🟢 ON PASSE displayCategory AU LIEU DE product.category */}
         <RelatedVendorProducts
           vendorId={product?.vendor_id}
           currentProductId={product?.id}
@@ -409,6 +424,7 @@ export default function ProductDetails() {
 
       </div>
 
+      {/* --- MODAL AVIS --- */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3">
           <div className="bg-white rounded-xl p-4 max-w-xs w-full shadow-2xl">
@@ -455,6 +471,7 @@ export default function ProductDetails() {
         </div>
       )}
 
+      {/* --- MODAL LITIGE --- */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3">
           <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-2xl">

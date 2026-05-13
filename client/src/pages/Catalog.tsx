@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
 import { productService } from '../services/productService'; 
 import { toast } from 'react-hot-toast';
+import { getPublicPrice } from '../utils/pricing'; // 🟢 1. Import de la nouvelle logique centralisée
 import type { Product } from '../types';
 
 // Typage explicite pour le glob import de Vite
@@ -28,6 +29,8 @@ const CATALOG_CATEGORIES = [
   "Pièces Habitacle", "Joints et Étanchéité", "Chauffage et Climatisation"
 ];
 
+// 🔴 L'ancienne fonction calculateFinalPrice a été définitivement supprimée !
+
 export default function Catalog() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -45,7 +48,7 @@ export default function Catalog() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [certifiedOnly, setCertifiedOnly] = useState(false);
 
-  // 🟢 1. Chargement des produits et des favoris
+  // 1. Chargement des produits et des favoris
   useEffect(() => {
     const fetchCatalog = async () => {
       setIsLoading(true);
@@ -73,7 +76,7 @@ export default function Catalog() {
     }
   }, [searchTerm, activeCategory, user]);
 
-  // 🟢 2. Logique du bouton Favori
+  // 2. Logique du bouton Favori
   const toggleFavorite = async (productId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -135,7 +138,7 @@ export default function Catalog() {
   return (
     <div className="bg-[#F8FAFC] min-h-screen pb-20 font-sans">
       
-      {/* 🟢 HEADER CATALOGUE */}
+      {/* HEADER CATALOGUE */}
       <div className="bg-slate-900 py-10 md:py-16 border-b border-slate-800">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 text-blue-400 font-bold text-[10px] md:text-xs uppercase tracking-widest mb-3">
@@ -153,7 +156,7 @@ export default function Catalog() {
 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
         
-        {/* 🟢 SIDEBAR FILTRES */}
+        {/* SIDEBAR FILTRES */}
         <aside className="hidden lg:block w-72 flex-shrink-0">
           <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm sticky top-28">
             <h3 className="text-sm font-[1000] text-slate-900 uppercase tracking-tighter mb-4 flex items-center gap-2 border-b border-slate-100 pb-4">
@@ -183,7 +186,7 @@ export default function Catalog() {
           </div>
         </aside>
 
-        {/* 🟢 MAIN CONTENT (GRILLE) */}
+        {/* MAIN CONTENT (GRILLE) */}
         <main className="flex-grow">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -204,10 +207,16 @@ export default function Catalog() {
               {filteredProducts.map((product) => {
                 const prod = product as any;
                 
+                // 🟢 2. Récupération des données brutes
+                const basePrice = product.price || 0;
+                
+                // 🟢 3. Calcul du prix final avec la fonction globale (Paliers dynamiques de 5% à 12%)
+                const finalPrice = getPublicPrice(basePrice);
+                
                 return (
                   <div key={product.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex flex-col group relative h-full">
                     
-                    {/* 🟢 BOUTON FAVORI */}
+                    {/* BOUTON FAVORI */}
                     <button 
                       onClick={(e) => toggleFavorite(product.id, e)}
                       className="absolute top-2 left-2 z-30 p-2.5 bg-white/90 backdrop-blur-md rounded-full shadow-lg border border-slate-100 active:scale-90 transition-transform"
@@ -215,13 +224,13 @@ export default function Catalog() {
                       <Heart size={14} className={favorites.includes(product.id) ? "fill-red-500 text-red-500" : "text-slate-300 group-hover:text-red-400"} />
                     </button>
 
-                    {/* 🟢 BADGE MARQUE (TOP RIGHT) */}
+                    {/* BADGE MARQUE (TOP RIGHT) */}
                     <div className="absolute top-2 right-2 z-20 bg-white/95 backdrop-blur-md text-slate-700 px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-wider border border-slate-200 shadow-sm flex items-center gap-1">
                       <Store size={10} className="text-blue-600" />
                       <span className="truncate max-w-[60px]">{product.brand || 'Générique'}</span>
                     </div>
 
-                    {/* 🟢 IMAGE */}
+                    {/* IMAGE */}
                     <Link to={`/product/${product.id}`} className="relative h-40 md:h-52 bg-slate-50 flex items-center justify-center p-6 overflow-hidden">
                       <img 
                         src={getImageUrl(product.image_url, product.brand)} 
@@ -230,7 +239,7 @@ export default function Catalog() {
                       />
                     </Link>
 
-                    {/* 🟢 CONTENU */}
+                    {/* CONTENU */}
                     <div className="p-4 md:p-6 flex flex-col flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 truncate max-w-[100px]">
@@ -257,14 +266,22 @@ export default function Catalog() {
 
                       <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
                         <div className="flex flex-col">
+                          {/* 🟢 4. Affichage du prix d'origine barré s'il y a une commission */}
+                          {basePrice !== finalPrice && (
+                            <span className="text-[8px] text-slate-300 line-through font-bold mb-0.5">
+                              {basePrice.toLocaleString()} CFA
+                            </span>
+                          )}
                           <p className="text-sm md:text-xl font-[1000] text-slate-900 italic tracking-tighter uppercase leading-none">
-                            {(product.price || 0).toLocaleString()} <span className="text-[9px] text-blue-600 not-italic font-black">CFA</span>
+                            {finalPrice.toLocaleString()} <span className="text-[9px] text-blue-600 not-italic font-black">CFA</span>
                           </p>
                         </div>
+                        
+                        {/* 🟢 5. On écrase le prix pour l'affichage TTC mais on GARDE la trace du prix d'origine pour le Checkout */}
                         <button 
                           onClick={(e) => { 
                             e.preventDefault(); 
-                            addToCart(product); 
+                            addToCart({ ...product, price: finalPrice, original_price: basePrice }); 
                             toast.success("Ajouté au panier");
                           }}
                           className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-xl active:scale-95"

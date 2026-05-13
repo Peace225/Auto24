@@ -4,6 +4,7 @@ import { useCartStore } from '../store/useCartStore';
 import { Link, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getPublicPrice } from '../utils/pricing'; // 🟢 Import de la logique de commission
 
 const COMMUNES_ABIDJAN = [
   'Abobo', 'Adjamé', 'Attécoubé', 'Cocody', 'Koumassi', 
@@ -24,8 +25,8 @@ const allImages = import.meta.glob('../assets/**/*.{png,jpg,jpeg,svg,webp}', {
 }) as Record<string, string>;
 
 export default function Checkout() {
-  // 🟢 1. On récupère la fonction getServiceFee de Zustand
-  const { items, getTotalPrice, getServiceFee, clearCart } = useCartStore();
+  // 🟢 1. On ne prend QUE les items et clearCart. On gère les calculs ici pour plus de sécurité.
+  const { items, clearCart } = useCartStore();
   const navigate = useNavigate();
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,16 +34,29 @@ export default function Checkout() {
   const [orderId, setOrderId] = useState('');
   const [selectedPayment, setSelectedPayment] = useState('wave');
   const [formData, setFormData] = useState({
-    fullName: '',
-    phone: '',
-    commune: '',
-    address: ''
+    fullName: '', phone: '', commune: '', address: ''
   });
 
-  // 🟢 2. On calcule les frais et le total
+  // 🟢 2. CALCULS SÉCURISÉS (Prix de base VS Prix Public via Paliers)
+  const getItemBasePrice = (item: any) => item.original_price || item.price || 0;
+  
+  const getItemFinalPrice = (item: any) => {
+    if (item.final_price) return item.final_price;
+    const basePrice = getItemBasePrice(item);
+    
+    // 🟢 La fonction se base uniquement sur le prix, plus besoin du vendorPlan
+    return getPublicPrice(basePrice);
+  };
+
+  // Somme totale que recevra le vendeur
+  const baseTotal = items.reduce((acc, item) => acc + (getItemBasePrice(item) * item.quantity), 0);
+  
+  // Somme totale que paiera le client (hors livraison)
+  const publicTotal = items.reduce((acc, item) => acc + (getItemFinalPrice(item) * item.quantity), 0);
+  
   const deliveryFee = 2000;
-  const serviceFee = getServiceFee(); // Frais de service (Marge SpaceAuto24)
-  const totalAmount = getTotalPrice() + deliveryFee + serviceFee;
+  const serviceFee = publicTotal - baseTotal; // La marge de SpaceAuto24 calculée dynamiquement !
+  const totalAmount = publicTotal + deliveryFee;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -61,7 +75,7 @@ export default function Checkout() {
     return fullPath ? allImages[fullPath] : imagePath;
   };
 
-  // 🟢 GÉNÉRATION DU REÇU PDF
+  // 🟢 3. GÉNÉRATION DU REÇU PDF (Avec les bons prix)
   const generatePDFReceipt = () => {
     const doc = new jsPDF();
     
@@ -88,16 +102,17 @@ export default function Checkout() {
     doc.text(`Contact : ${formData.phone}`, 18, 69);
     doc.text(`Adresse : ${formData.address}, ${formData.commune}`, 18, 75);
 
+    // Les lignes de produits utilisent le prix public (TTC)
     const tableData = items.map(item => [
       item.name.toUpperCase(),
       item.quantity.toString(),
-      `${item.price.toLocaleString()} FCFA`,
-      `${(item.price * item.quantity).toLocaleString()} FCFA`
+      `${getItemFinalPrice(item).toLocaleString()} FCFA`,
+      `${(getItemFinalPrice(item) * item.quantity).toLocaleString()} FCFA`
     ]);
 
     autoTable(doc, {
       startY: 92,
-      head: [['DÉSIGNATION', 'QTÉ', 'P.U', 'TOTAL']],
+      head: [['DÉSIGNATION', 'QTÉ', 'P.U (TTC)', 'TOTAL']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [30, 41, 59], fontSize: 8, halign: 'center' },
@@ -105,11 +120,10 @@ export default function Checkout() {
       columnStyles: { 0: { cellWidth: 90 }, 3: { halign: 'right' } }
     });
 
-    // 🟢 3. On ajoute les frais de service au PDF
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(9);
-    doc.text('SOUS-TOTAL :', 130, finalY);
-    doc.text(`${getTotalPrice().toLocaleString()} FCFA`, 175, finalY, { align: 'right' });
+    doc.text('SOUS-TOTAL (Articles) :', 130, finalY);
+    doc.text(`${baseTotal.toLocaleString()} FCFA`, 175, finalY, { align: 'right' });
     
     doc.text('FRAIS DE SERVICE :', 130, finalY + 7);
     doc.text(`${serviceFee.toLocaleString()} FCFA`, 175, finalY + 7, { align: 'right' });
@@ -312,7 +326,8 @@ export default function Checkout() {
                       <h4 className="text-[10px] font-bold uppercase text-slate-200 truncate mb-1">{item.name}</h4>
                       <div className="flex justify-between items-center text-[11px] font-black text-blue-400">
                         <span className="text-[9px] text-slate-500 font-medium uppercase">Qté: {item.quantity}</span>
-                        <span>{(item.price * item.quantity).toLocaleString()} FCFA</span>
+                        {/* 🟢 Affichage du prix public (avec la comission par palier) */}
+                        <span>{(getItemFinalPrice(item) * item.quantity).toLocaleString()} FCFA</span>
                       </div>
                     </div>
                   </div>
@@ -321,31 +336,33 @@ export default function Checkout() {
 
               <div className="space-y-3 border-t border-white/10 pt-5 mb-6">
                 
-                {/* 🟢 MODIFICATION : Articles (Vendeur) */}
+                {/* 🟢 ARTICLES (PRIX DE BASE VENDEUR) */}
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   <span>Articles (Vendeur)</span>
-                  <span className="text-white">{getTotalPrice().toLocaleString()} FCFA</span>
+                  <span className="text-white">{baseTotal.toLocaleString()} FCFA</span>
                 </div>
 
-                {/* 🟢 AJOUT : Frais de Service avec Tooltip */}
-                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 group relative cursor-help">
-                  <span className="flex items-center gap-1 border-b border-dashed border-slate-500">
-                    Frais de Service
-                  </span>
-                  <span className="text-blue-400">+{serviceFee.toLocaleString()} FCFA</span>
-                  
-                  {/* Tooltip caché */}
-                  <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 text-[9px] text-slate-300 p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl border border-slate-700">
-                    Couvre la garantie 7 jours, le support et la sécurisation du paiement.
+                {/* 🟢 FRAIS DE SERVICE SÉPARÉS */}
+                {serviceFee > 0 && (
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 group relative cursor-help">
+                    <span className="flex items-center gap-1 border-b border-dashed border-slate-500">
+                      Frais de Service
+                    </span>
+                    <span className="text-blue-400">+{serviceFee.toLocaleString()} FCFA</span>
+                    
+                    {/* Tooltip caché */}
+                    <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 text-[9px] text-slate-300 p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl border border-slate-700">
+                      Couvre la garantie 7 jours, le support et la sécurisation du paiement.
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   <span>Livraison</span>
                   <span className="text-emerald-400">+{deliveryFee.toLocaleString()} FCFA</span>
                 </div>
                 
-                {/* 🟢 MODIFICATION : Le Total prend tout en compte */}
+                {/* 🟢 TOTAL GLOBAL TTC */}
                 <div className="bg-white/5 p-4 md:p-5 rounded-xl mt-4 border border-white/10 flex justify-between items-center">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Total TTC</span>
                   <span className="text-xl md:text-2xl font-black tracking-tighter text-white">

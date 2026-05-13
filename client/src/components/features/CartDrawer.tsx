@@ -2,15 +2,33 @@
 import { Link } from 'react-router-dom';
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
+import { getPublicPrice } from '../../utils/pricing'; // 🟢 Import de la logique des paliers (5%, 8%, 10%, 12%)
 
 export default function CartDrawer() {
-  const { items, isOpen, closeCart, removeFromCart, updateQuantity, getTotalPrice } = useCartStore();
+  const { items, isOpen, closeCart, removeFromCart, updateQuantity } = useCartStore();
 
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return 'https://placehold.co/150x150/f8fafc/94a3b8?text=Image+Indisponible';
     if (imagePath.startsWith('http')) return imagePath;
     return imagePath; 
   };
+
+  // 🟢 LOGIQUE DE SÉCURITÉ : Calcule le vrai prix (avec les bons paliers de commission)
+  const getItemFinalPrice = (item: any) => {
+    // Si le prix final a déjà été injecté correctement par le catalogue, on l'utilise
+    if (item.final_price) return item.final_price;
+    
+    // Sinon, on sécurise en recalculant à la volée avec la fonction globale
+    const basePrice = item.original_price || item.price || 0;
+    
+    // 🟢 La fonction n'a plus besoin du vendorPlan, elle se base uniquement sur le prix
+    return getPublicPrice(basePrice);
+  };
+
+  // 🟢 CALCUL DU TOTAL TTC RÉEL (Remplace getTotalPrice() du store)
+  const realTotalTTC = items.reduce((total, item) => {
+    return total + (getItemFinalPrice(item) * item.quantity);
+  }, 0);
 
   if (!isOpen) return null;
 
@@ -66,62 +84,69 @@ export default function CartDrawer() {
               </button>
             </div>
           ) : (
-            items.map((item) => (
-              <div key={item.id} className="flex gap-3 group items-center">
-                {/* IMAGE (Micro taille) */}
-                <div className="w-14 h-14 flex-shrink-0 bg-[#f8fafc] rounded-xl overflow-hidden border border-slate-100 p-1.5 relative transition-all duration-300">
-                  <img 
-                    src={getImageUrl(item.image_url)} 
-                    alt={item.name} 
-                    className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" 
-                  />
-                </div>
+            items.map((item) => {
+              // 🟢 Appel de notre fonction sécurisée pour chaque article
+              const unitPrice = getItemFinalPrice(item);
+              const itemTotal = unitPrice * item.quantity;
 
-                {/* Infos produit */}
-                <div className="flex-grow flex flex-col min-w-0">
-                  <div className="mb-1.5">
-                    <h3 className="text-[10px] font-black text-slate-900 leading-tight mb-1 uppercase line-clamp-1 group-hover:text-blue-600 transition-colors tracking-tight">
-                      {item.name}
-                    </h3>
+              return (
+                <div key={item.id} className="flex gap-3 group items-center">
+                  {/* IMAGE (Micro taille) */}
+                  <div className="w-14 h-14 flex-shrink-0 bg-[#f8fafc] rounded-xl overflow-hidden border border-slate-100 p-1.5 relative transition-all duration-300">
+                    <img 
+                      src={getImageUrl(item.image_url)} 
+                      alt={item.name} 
+                      className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" 
+                    />
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-blue-600 text-[11px] tracking-tighter">
-                      {(item.price * item.quantity).toLocaleString('fr-FR')} <small className="text-[7px] text-slate-400">CFA</small>
-                    </span>
 
-                    <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
-                      <button 
-                        onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} 
-                        className="p-1 hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-all disabled:opacity-20 active:bg-blue-50"
-                        disabled={item.quantity <= 1}
-                      >
-                        <Minus className="w-2.5 h-2.5" />
-                      </button>
-                      
-                      <span className="text-[9px] font-black w-5 text-center text-slate-900 border-x border-slate-100 bg-white">
-                        {item.quantity}
+                  {/* Infos produit */}
+                  <div className="flex-grow flex flex-col min-w-0">
+                    <div className="mb-1.5">
+                      <h3 className="text-[10px] font-black text-slate-900 leading-tight mb-1 uppercase line-clamp-1 group-hover:text-blue-600 transition-colors tracking-tight">
+                        {item.name}
+                      </h3>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      {/* 🟢 Affichage du prix total correct pour cet article (avec paliers) */}
+                      <span className="font-black text-blue-600 text-[11px] tracking-tighter">
+                        {itemTotal.toLocaleString('fr-FR')} <small className="text-[7px] text-slate-400">CFA</small>
                       </span>
-                      
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)} 
-                        className="p-1 hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-all active:bg-blue-50"
-                      >
-                        <Plus className="w-2.5 h-2.5" />
-                      </button>
+
+                      <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
+                        <button 
+                          onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} 
+                          className="p-1 hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-all disabled:opacity-20 active:bg-blue-50"
+                          disabled={item.quantity <= 1}
+                        >
+                          <Minus className="w-2.5 h-2.5" />
+                        </button>
+                        
+                        <span className="text-[9px] font-black w-5 text-center text-slate-900 border-x border-slate-100 bg-white">
+                          {item.quantity}
+                        </span>
+                        
+                        <button 
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)} 
+                          className="p-1 hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-all active:bg-blue-50"
+                        >
+                          <Plus className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Supprimer */}
-                <button 
-                  onClick={() => removeFromCart(item.id)}
-                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))
+                  {/* Supprimer */}
+                  <button 
+                    onClick={() => removeFromCart(item.id)}
+                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })
           )}
         </div>
 
@@ -131,7 +156,8 @@ export default function CartDrawer() {
             <div className="flex items-center justify-between mb-4">
               <span className="text-slate-900 font-black uppercase text-[9px] tracking-widest">Total TTC</span>
               <p className="text-lg font-black text-slate-900 tracking-tighter leading-none">
-                {getTotalPrice().toLocaleString('fr-FR')} <span className="text-[8px] text-blue-600 uppercase tracking-widest">CFA</span>
+                {/* 🟢 Affichage du VRAI TOTAL calculé */}
+                {realTotalTTC.toLocaleString('fr-FR')} <span className="text-[8px] text-blue-600 uppercase tracking-widest">CFA</span>
               </p>
             </div>
             

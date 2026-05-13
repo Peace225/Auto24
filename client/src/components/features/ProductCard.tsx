@@ -1,6 +1,7 @@
 import { ShoppingCart, Image as ImageIcon, MapPin, Settings, Star, ShieldCheck, Hash, Car, Store } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { Link } from 'react-router-dom';
+import { getPublicPrice } from '../../utils/pricing'; // 🟢 1. Import de la fonction globale par paliers
 
 interface ProductCardProps {
   product: any;
@@ -16,18 +17,12 @@ export default function ProductCard({ product }: ProductCardProps) {
   const totalReviews = product?.totalReviews ?? (product?.reviews?.length || 0);
   const avgRating = product?.avgRating || 0;
 
-  // 🟢 LOGIQUE VENDEUR ET COMMISSION
-  const vendorPlan = product?.vendor?.subscription_plan || product?.vendor_plan || 'free';
-  const vendorRole = product?.vendor?.role || product?.vendor_role || 'vendor';
+  // 🟢 LOGIQUE BOUTIQUE
   const storeName = product?.vendor?.store_name || product?.vendor_name || 'Boutique Partenaire';
 
-  let commissionRate = 0.10; 
-  if (vendorRole === 'admin') commissionRate = 0; 
-  else if (vendorPlan === 'premium') commissionRate = 0.01; 
-  else if (vendorPlan === 'pro') commissionRate = 0.05; 
-
+  // 🟢 2. CALCUL SÉCURISÉ DES PRIX VIA LES PALIERS
   const basePrice = product?.original_price || product?.price || 0;
-  const finalPrice = Math.round(basePrice + (basePrice * commissionRate));
+  const finalPrice = getPublicPrice(basePrice);
 
   const productWithFinalPrice = {
     ...product,
@@ -133,8 +128,14 @@ export default function ProductCard({ product }: ProductCardProps) {
         
         <div className="mt-auto">
           {/* PRIX */}
-          <div className="mb-3">
-            <div className="text-[#111625] font-black text-sm md:text-2xl tracking-tighter italic">
+          <div className="mb-3 flex flex-col">
+            {/* 🟢 3. Affichage du prix d'origine barré s'il y a une commission */}
+            {basePrice !== finalPrice && (
+              <span className="text-[8px] text-slate-300 line-through font-bold mb-0.5">
+                {basePrice.toLocaleString('fr-FR')} CFA
+              </span>
+            )}
+            <div className="text-[#111625] font-black text-sm md:text-2xl tracking-tighter italic leading-none">
               {finalPrice.toLocaleString('fr-FR')} <span className="text-[7px] md:text-[10px] font-bold text-slate-400 not-italic uppercase tracking-widest">CFA</span>
             </div>
           </div>
