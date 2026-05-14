@@ -1,43 +1,34 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronRight, Play, Pause, ExternalLink } from 'lucide-react';
+import { Play, Pause, ExternalLink } from 'lucide-react';
 import HeroSearch from './HeroSearch';
 
 const BANNERS = [
   {
     id: 1,
     type: "BIENVENUE",
-    title: "ACHETEZ ET VENDEZ VOS PIÈCES EN TOUTE CONFIANCE",
-    subtitle: "Pièces fiables – Livraison rapide – Vendeurs vérifiés",
-    cta: "Explorer le catalogue",
+    title: "VOS PIÈCES AUTO EN UN CLIC",
+    subtitle: "Fiabilité certifiée – Livraison partout à Abidjan",
+    cta: "Catalogue",
     image: "/images/banner/main-hero.jpg", 
     color: "bg-blue-700"
   },
   {
     id: 2,
     type: "PROMO",
-    title: "ENTRETIEN ET NETTOYAGE",
-    subtitle: "Gardez votre véhicule comme neuf avec nos kits premium.",
-    cta: "Voir les produits",
+    title: "KIT ENTRETIEN PREMIUM",
+    subtitle: "Gardez votre moteur comme neuf.",
+    cta: "Découvrir",
     image: "/images/banner/lavage.jpg", 
     color: "bg-blue-600"
   },
   {
     id: 3,
     type: "MARKETPLACE",
-    title: "VENEZ VENDRE AVEC NOUS",
-    subtitle: "Rejoignez la plus grande communauté de vendeurs auto à Abidjan.",
-    cta: "Devenir partenaire",
+    title: "VENDRE VOS PIÈCES",
+    subtitle: "Rejoignez nos vendeurs partenaires dès aujourd'hui.",
+    cta: "Vendre",
     image: "/images/banner/produits.jpg",
     color: "bg-red-500"
-  },
-  {
-    id: 4,
-    type: "EXCLUSIVITÉ",
-    title: "PIÈCES DE FREINAGE",
-    subtitle: "Sécurité maximale : -25% sur les disques et plaquettes ce mois-ci.",
-    cta: "Découvrir",
-    image: "/images/banner/pieces-freinage.jpg",
-    color: "bg-green-600"
   }
 ];
 
@@ -56,81 +47,73 @@ export default function HeroSection() {
   }, [isPaused, nextSlide]);
 
   return (
-    <section className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6">
-      <div className="flex flex-col lg:flex-row gap-4 md:gap-6 items-stretch">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
         
-        {/* BLOC RECHERCHE : Compact sur mobile */}
-        <div className="w-full lg:w-[360px] bg-white border border-slate-100 rounded-3xl md:rounded-[2.5rem] shadow-xl p-5 md:p-6 flex flex-col z-20 order-2 lg:order-1">
-          <div className="mb-4 md:mb-6 text-center lg:text-left">
-             <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase">Identifiez votre véhicule</h2>
-             <div className="w-8 h-1 bg-blue-600 mt-2 md:mt-3 rounded-full mx-auto lg:mx-0"></div>
+        {/* 🔍 BLOC RECHERCHE RECTANGLE VERTICAL */}
+        <div className="w-full lg:w-[300px] bg-white border border-slate-100 rounded-xl shadow-sm p-4 flex flex-col z-20">
+          <div className="mb-3">
+              <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Trouver une pièce</h2>
+              <div className="w-8 h-0.5 bg-blue-600 mt-1"></div>
           </div>
-          
-          <div className="flex-grow">
-            <HeroSearch />
-          </div>
-
-          <button className="mt-4 md:mt-6 w-full bg-slate-50 p-3 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between group hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100">
-             <span className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">Véhicules enregistrés</span>
-             <ChevronRight className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-          </button>
+          <HeroSearch />
         </div>
 
-        {/* CARROUSEL PUBLICITAIRE : Textes et Boutons miniaturisés sur mobile */}
-        <div className="flex-1 relative min-h-[300px] sm:min-h-[400px] lg:min-h-[480px] rounded-2xl md:rounded-[1.1rem] overflow-hidden shadow-2xl bg-slate-900 order-1 lg:order-2">
+        {/* 🎡 CARROUSEL : FORMAT RECTANGLE PANORAMIQUE */}
+        <div className="flex-1 relative h-[180px] sm:h-[220px] lg:h-[280px] w-full rounded-xl overflow-hidden bg-slate-900 shadow-sm border border-slate-100">
           {BANNERS.map((banner, index) => (
             <div
               key={banner.id}
-              className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${
+              className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${
                 index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}
             >
               <img 
                 src={banner.image} 
                 alt={banner.title} 
-                className="absolute inset-0 w-full h-full object-cover" 
+                className="absolute inset-0 w-full h-full object-cover object-center" 
               />
               
+              {/* Overlay plus sombre à gauche pour la lisibilité */}
               <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent" />
 
-              <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-16 text-white">
-                <span className={`${banner.color} text-[8px] md:text-[10px] font-black px-3 py-1 md:px-4 md:py-1.5 rounded-full w-fit mb-3 md:mb-4 tracking-widest uppercase shadow-lg`}>
+              <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-12 text-white">
+                <span className={`${banner.color} text-[8px] font-black px-2 py-0.5 rounded w-fit mb-2 tracking-widest uppercase`}>
                   {banner.type}
                 </span>
                 
-                <h2 className="text-xl md:text-5xl font-black mb-2 md:mb-3 leading-tight max-w-2xl drop-shadow-md uppercase tracking-tighter">
+                <h2 className="text-base md:text-2xl lg:text-3xl font-black mb-1 leading-tight max-w-sm lg:max-w-md uppercase">
                   {banner.title}
                 </h2>
                 
-                <p className="text-slate-100 text-[11px] md:text-lg opacity-90 mb-6 md:mb-8 max-w-lg font-medium line-clamp-2 italic">
+                <p className="text-slate-200 text-[10px] md:text-xs opacity-90 mb-4 max-w-xs font-medium hidden sm:block">
                   {banner.subtitle}
                 </p>
                 
-                {/* 🟢 BOUTON CTA COMPACT */}
-                <button className="flex items-center gap-2 md:gap-3 w-fit bg-white text-slate-900 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-[9px] md:text-xs uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-xl active:scale-95 group">
+                <button className="flex items-center gap-2 w-fit bg-white text-slate-900 px-4 py-1.5 rounded-md font-black text-[9px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all active:scale-95 group">
                   {banner.cta}
-                  <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:rotate-12 transition-transform" />
+                  <ExternalLink className="w-3 h-3" />
                 </button>
               </div>
             </div>
           ))}
 
-          {/* Pagination & Contrôles */}
-          <div className="absolute bottom-4 md:bottom-8 left-0 right-0 z-30 flex items-center justify-center gap-4 md:gap-6">
+          {/* Pagination discrète */}
+          <div className="absolute bottom-3 right-6 z-30 flex items-center gap-3 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
               <button 
                 onClick={() => setIsPaused(!isPaused)} 
-                className="text-white/50 hover:text-white transition-colors p-1.5 md:p-2 bg-black/20 backdrop-blur-md rounded-full"
+                className="text-white/60 hover:text-white transition-colors"
               >
-                {isPaused ? <Play className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" /> : <Pause className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" />}
+                {isPaused ? <Play size={10} className="fill-current" /> : <Pause size={10} className="fill-current" />}
               </button>
               
-              <div className="flex gap-2 md:gap-2.5">
+              <div className="flex gap-1">
                 {BANNERS.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => { setCurrentSlide(i); setIsPaused(true); }}
-                    className={`h-1 md:h-1.5 rounded-full transition-all duration-500 ${
-                      i === currentSlide ? 'bg-white w-8 md:w-10 shadow-md' : 'bg-white/30 w-2 md:w-2.5 hover:bg-white/60'
+                    className={`h-1 rounded-full transition-all duration-500 ${
+                      i === currentSlide ? 'bg-white w-4' : 'bg-white/20 w-1'
                     }`}
                   />
                 ))}

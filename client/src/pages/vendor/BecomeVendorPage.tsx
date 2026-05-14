@@ -5,8 +5,8 @@ import {
   Building2, AlertCircle, Phone, MapPin
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/useAuthStore';
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
 
 export default function BecomeVendorPage() {

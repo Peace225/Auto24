@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // Layouts
@@ -26,8 +26,11 @@ import ReturnPolicyPage from './pages/support/ReturnPolicyPage';
 import FaqPage from './pages/support/FaqPage';
 
 // IMPORTS VENDEUR
-import BecomeVendorPage from './pages/VendorDashboard'; // ⚠️ Vérifie ce chemin, il devrait sûrement être './pages/vendor/BecomeVendorPage'
+import BecomeVendorPage from './pages/vendor/BecomeVendorPage'; 
 import VendorDashboard from './pages/vendor/VendorDashboard'; 
+import VendorPricing from './pages/vendor/VendorPricing'; 
+import VendorPayment from './pages/vendor/VendorPayment';
+import BoostPage from './pages/vendor/BoostPage'; // <-- AJOUT DE L'IMPORT
 
 // Pages Thématiques
 import MotorOil from './pages/MotorOil';
@@ -47,7 +50,7 @@ import VendorProducts from './pages/vendor/VendorProducts';
 import VendorSettings from './pages/vendor/VendorSettings';
 import VendorMessages from './pages/vendor/VendorMessages';
 import VendorNotifications from './pages/vendor/VendorNotifications';
-import RegisterVendorPage from './pages/vendor/RegisterVendorPage'; // 🟢 Import de l'Étape 2
+import RegisterVendorPage from './pages/vendor/RegisterVendorPage';
 
 // Pages Administration
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -55,16 +58,12 @@ import AdminTransactions from "./pages/admin/AdminTransactions";
 
 import './App.css';
 
-// 🟢 COMPOSANT CONDITIONNEL POUR MASQUER WHATSAPP SUR LES DASHBOARDS
+// Composant pour masquer le bouton WhatsApp sur les interfaces Dashboard et Auth
 function ConditionalWhatsApp() {
   const location = useLocation();
-  
-  // Liste des préfixes d'URL où le bouton doit être masqué
-  const hiddenPaths = ['/admin', '/vendor', '/dashboard'];
-  
-  // Vérifie si l'URL actuelle commence par l'un des chemins interdits
+  const hiddenPaths = ['/admin', '/vendor', '/dashboard', '/login', '/register'];
   const shouldHide = hiddenPaths.some(path => location.pathname.startsWith(path));
-
+  
   if (shouldHide) return null;
   return <WhatsAppFloatingBtn />;
 }
@@ -73,12 +72,10 @@ function App() {
   return (
     <Router>
       <Toaster position="top-right" />
-      
-      {/* 🟢 INTÉGRATION DU PANIER (Il sera accessible sur toutes les pages) */}
       <CartDrawer />
 
       <Routes>
-        {/* --- BLOC PRINCIPAL --- */}
+        {/* --- 1. ROUTES CLIENTS (Avec Layout public) --- */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<SearchPage />} />
@@ -93,49 +90,62 @@ function App() {
           <Route path="/category/:slug" element={<CategoryPage />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
-
-          {/* ROUTES ASSISTANCE */}
           <Route path="/support" element={<SupportPage />} />
           <Route path="/return-policy" element={<ReturnPolicyPage />} />
           <Route path="/faq" element={<FaqPage />} />
-
-          {/* Le formulaire de candidature Vendeur (Étape 1) */}
           <Route path="/become-vendor" element={<BecomeVendorPage />} /> 
+        </Route>
 
-          {/* ADMINISTRATION */}
-          <Route path="/admin">
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="transactions" element={<AdminTransactions />} />
+        {/* --- 2. ROUTES VENDEURS (Protégées par VendorGuard) --- */}
+        <Route 
+          path="/vendor" 
+          element={
+            <VendorGuard>
+              <VendorLayout />
+            </VendorGuard>
+          }
+        >
+          <Route index element={<Navigate to="/vendor/dashboard" replace />} /> 
+          <Route path="dashboard" element={<VendorDashboard />} />
+          
+          {/* Section Produits */}
+          <Route path="products">
+            <Route index element={<VendorProducts />} />
+            <Route path="new" element={<AddProduct />} />
           </Route>
 
-          {/* ESPACE DE GESTION VENDEUR (Privé & Sécurisé) */}
-          <Route path="/vendor" element={<VendorLayout />}>
-            <Route element={<VendorGuard />}>
-              <Route index element={<VendorDashboard />} /> 
-              <Route path="dashboard" element={<VendorDashboard />} />
-              
-              {/* 🛑 /register-vendor a été retiré d'ici pour éviter le crash ! */}
-              
-              <Route path="add-product" element={<AddProduct />} />
-              <Route path="orders" element={<VendorOrders />} />
-              <Route path="products" element={<VendorProducts />} />
-              <Route path="messages" element={<VendorMessages />} />
-              <Route path="notifications" element={<VendorNotifications />} />
-              <Route path="settings" element={<VendorSettings />} />
-            </Route>
+          <Route path="orders" element={<VendorOrders />} />
+          <Route path="messages" element={<VendorMessages />} />
+          <Route path="notifications" element={<VendorNotifications />} />
+          
+          {/* LOGIQUE DE BOOST / SPONSORING */}
+          <Route path="boost" element={<BoostPage />} /> {/* <-- AJOUT DE LA ROUTE */}
+
+          {/* Section Paramètres et Paiement */}
+          <Route path="settings">
+            <Route index element={<VendorSettings />} />
+            <Route path="plans" element={<VendorPricing />} />
+            <Route path="payment" element={<VendorPayment />} />
           </Route>
         </Route>
 
-        {/* --- HORS LAYOUT (Pages Plein Écran) --- */}
+        {/* --- 3. ROUTES ADMIN --- */}
+        <Route path="/admin">
+           <Route index element={<Navigate to="/admin/dashboard" replace />} />
+           <Route path="dashboard" element={<AdminDashboard />} />
+           <Route path="transactions" element={<AdminTransactions />} />
+        </Route>
+
+        {/* --- 4. PAGES HORS LAYOUT (Login/Register) --- */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
-        {/* 🟢 LA PAGE A ÉTÉ DÉPLACÉE ICI ! */}
         <Route path="/register-vendor" element={<RegisterVendorPage />} />
+        
+        {/* --- 5. GESTION DES ERREURS 404 --- */}
+        <Route path="*" element={<Navigate to="/" replace />} />
         
       </Routes>
 
-      {/* 🟢 EXÉCUTION DU COMPOSANT CONDITIONNEL */}
       <ConditionalWhatsApp />
     </Router>
   );
