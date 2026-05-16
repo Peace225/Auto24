@@ -48,10 +48,12 @@ export default function HeroSection() {
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-      <div className="flex flex-col lg:flex-row gap-4 items-start">
+      {/* flex-col-reverse gère l'inversion sur mobile */}
+      <div className="flex flex-col-reverse lg:flex-row gap-4 items-stretch">
         
         {/* 🔍 BLOC RECHERCHE RECTANGLE VERTICAL */}
-        <div className="w-full lg:w-[300px] bg-white border border-slate-100 rounded-xl shadow-sm p-4 flex flex-col z-20">
+        {/* Correction : z-index abaissé à lg:z-20 pour ne pas écraser le carrousel sur mobile */}
+        <div className="w-full lg:w-[300px] bg-white border border-slate-100 rounded-xl shadow-sm p-4 flex flex-col z-10 lg:z-20">
           <div className="mb-3">
               <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Trouver une pièce</h2>
               <div className="w-8 h-0.5 bg-blue-600 mt-1"></div>
@@ -59,8 +61,9 @@ export default function HeroSection() {
           <HeroSearch />
         </div>
 
-        {/* 🎡 CARROUSEL : FORMAT RECTANGLE PANORAMIQUE */}
-        <div className="flex-1 relative h-[180px] sm:h-[220px] lg:h-[280px] w-full rounded-xl overflow-hidden bg-slate-900 shadow-sm border border-slate-100">
+        {/* 🎡 CARROUSEL */}
+        {/* Correction : Changement de h-[180px] à min-h-[200px] pour éviter que le bloc ne s'écrase sur petit écran */}
+        <div className="flex-1 relative min-h-[200px] sm:h-[220px] lg:h-[280px] w-full rounded-xl overflow-hidden bg-slate-900 shadow-sm border border-slate-100 z-20 lg:z-10">
           {BANNERS.map((banner, index) => (
             <div
               key={banner.id}
@@ -68,15 +71,22 @@ export default function HeroSection() {
                 index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}
             >
+              {/* Image avec arrière-plan de secours (si l'image n'est pas trouvée) */}
+              <div className="absolute inset-0 bg-slate-800" />
               <img 
                 src={banner.image} 
                 alt={banner.title} 
-                className="absolute inset-0 w-full h-full object-cover object-center" 
+                className="absolute inset-0 w-full h-full object-cover object-center"
+                onError={(e) => {
+                  // Optionnel : remplace par un placeholder si l'image locale crache
+                  e.currentTarget.style.display = 'none';
+                }}
               />
               
-              {/* Overlay plus sombre à gauche pour la lisibilité */}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent" />
+              {/* Overlay dégradé */}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-black/20 z-10" />
 
+              {/* Contenu textuel */}
               <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-12 text-white">
                 <span className={`${banner.color} text-[8px] font-black px-2 py-0.5 rounded w-fit mb-2 tracking-widest uppercase`}>
                   {banner.type}
@@ -98,7 +108,7 @@ export default function HeroSection() {
             </div>
           ))}
 
-          {/* Pagination discrète */}
+          {/* Pagination */}
           <div className="absolute bottom-3 right-6 z-30 flex items-center gap-3 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
               <button 
                 onClick={() => setIsPaused(!isPaused)} 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   LayoutDashboard, ShoppingBag, Package, 
-  Settings, LogOut, MessageSquare, Bell,
+  Settings, LogOut, MessageSquare, 
   Crown, ShieldCheck, Star, Zap
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -148,8 +148,8 @@ export default function VendorSidebar() {
       {/* --- MOBILE NAVIGATION BAR --- */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#05070B]/95 backdrop-blur-xl border-t border-white/10 px-2 pb-safe z-[1000] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-around h-16 max-w-md mx-auto">
-          {/* On filtre pour ne garder que les 5 essentiels sur mobile */}
-          {menuItems.filter(i => i.label !== 'Réglages').slice(0, 5).map((item) => {
+          {/* On filtre pour ne garder que les 4 premiers essentiels sur mobile afin de laisser la 5ème place à la Déconnexion */}
+          {menuItems.filter(i => i.label !== 'Réglages').slice(0, 4).map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
@@ -174,13 +174,26 @@ export default function VendorSidebar() {
                 </span>
 
                 {item.label === 'Messages' && unreadCount > 0 && (
-                  <span className="absolute top-1 right-2 bg-red-500 text-white text-[7px] w-3 h-3 flex items-center justify-center rounded-full">
+                  <span className="absolute top-1 right-2 bg-red-500 text-white text-[7px] w-3 h-3 flex items-center justify-center rounded-full animate-bounce">
                     {unreadCount}
                   </span>
                 )}
               </Link>
             );
           })}
+
+          {/* 🔴 BOUTON DÉCONNEXION EN FIN DE BARRE MOBILE */}
+          <button
+            onClick={handleLogout}
+            className="flex flex-col items-center justify-center gap-1 transition-all px-3 py-1 rounded-xl text-slate-500 hover:text-red-400 active:text-red-500 group"
+          >
+            <span className="transition-transform duration-300 active:scale-110">
+              <LogOut className="w-5 h-5 text-red-500/70 group-hover:text-red-400" />
+            </span>
+            <span className="text-[8px] font-black uppercase tracking-tighter opacity-50 group-hover:opacity-100">
+              Quitter
+            </span>
+          </button>
         </div>
       </nav>
     </>
