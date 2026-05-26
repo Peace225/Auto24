@@ -1,18 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  PackageSearch, 
-  CreditCard, 
-  Gavel, 
-  LogOut,
-  PlusCircle,
-  PackagePlus,
-  Settings,
-  Database,
-  UserCheck,
-  Crown,
-  Store
+import {
+  LayoutDashboard, Users, PackageSearch, CreditCard, Gavel, LogOut,
+  PlusCircle, PackagePlus, Settings, Database, UserCheck,
+  Store, MessageSquare, Package, Crown
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -20,127 +10,130 @@ import { useAuthStore } from '../../store/useAuthStore';
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  userRole?: 'super_admin' | 'support' | 'tech' | 'com';
 }
 
-export default function AdminSidebar({ activeTab, setActiveTab }: SidebarProps) {
+const menuStructure = [
+  {
+    title: "Gestion Plateforme",
+    role: "all",
+    items: [
+      { id: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
+      { id: 'orders', icon: Package, label: 'Commandes' },
+      { id: 'messages', icon: MessageSquare, label: 'Messages' },
+      { id: 'disputes', icon: Gavel, label: 'Litiges' },
+    ]
+  },
+  {
+    title: "Boutique Admin",
+    role: "super_admin",
+    items: [
+      { id: 'create-store', icon: PlusCircle, label: 'Créer Boutique' },
+      { id: 'add-product', icon: PackagePlus, label: 'Ajouter Produit' },
+    ]
+  },
+  {
+    title: "Inventaire & Stock",
+    role: "tech",
+    items: [
+      { id: 'my-store', icon: Store, label: 'Mon Inventaire' },
+      { id: 'products', icon: PackageSearch, label: 'Stock Global' },
+      { id: 'ktype', icon: Database, label: 'Véhicules' },
+    ]
+  },
+  {
+    title: "Administration Utilisateurs",
+    role: "com",
+    items: [
+      { id: 'subscriptions', icon: Crown, label: 'Abonnements' },
+      { id: 'users', icon: Users, label: 'Utilisateurs' },
+      { id: 'vendors', icon: UserCheck, label: 'Approbations' },
+      { id: 'payments', icon: CreditCard, label: 'Transactions' },
+      { id: 'settings', icon: Settings, label: 'Paramètres' },
+    ]
+  }
+];
+
+// Composant Navigation Mobile
+const MobileNav = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: string) => void }) => {
+  const mobileItems = [
+    { id: 'overview', icon: LayoutDashboard, label: 'Dash' },
+    { id: 'orders', icon: Package, label: 'Cmds' },
+    { id: 'messages', icon: MessageSquare, label: 'Msgs' },
+    { id: 'users', icon: Users, label: 'Users' }
+  ];
+
+  return (
+    <div className="xl:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B0F1A] border-t border-white/10 flex justify-around items-center z-[9999] px-2 shadow-2xl">
+      {mobileItems.map((item) => (
+        <button 
+          key={item.id} 
+          onClick={() => setActiveTab(item.id)}
+          className={`flex flex-col items-center gap-1 ${activeTab === item.id ? 'text-blue-400' : 'text-slate-500'}`}
+        >
+          <item.icon className="w-5 h-5" />
+          <span className="text-[9px] font-black uppercase">{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
+export default function AdminSidebar({ activeTab, setActiveTab, userRole = 'super_admin' }: SidebarProps) {
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
 
-  const totalOffset = 75; // Aligné sur la hauteur du header
-
-  // 🟢 NAVIGATION MISE À JOUR : Ajout de "Mon Inventaire" et "Abonnements"
-  const menuItems = [
-    { id: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'subscriptions', icon: Crown, label: 'Abonnements' }, // Pour gérer les plans Pro/Premium
-    { id: 'users', icon: Users, label: 'Utilisateurs' },
-    { id: 'vendors', icon: UserCheck, label: 'Approbations' },
-    { id: 'my-store', icon: Store, label: 'Mon Inventaire' }, // Gestion spécifique SpaceAuto
-    { id: 'products', icon: PackageSearch, label: 'Stock Global' },
-    { id: 'ktype', icon: Database, label: 'Véhicules' },
-    { id: 'payments', icon: CreditCard, label: 'Transactions' },
-    { id: 'disputes', icon: Gavel, label: 'Litiges' },
-    { id: 'settings', icon: Settings, label: 'Paramètres' }, 
-  ];
+  const filteredMenu = menuStructure.filter(section => 
+    section.role === 'all' || section.role === userRole || userRole === 'super_admin'
+  );
 
   const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-      navigate('/login');
-    } catch (error) {
-      console.error("Erreur de déconnexion:", error);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    navigate('/login');
   };
 
   return (
-    <aside 
-      className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-6 bg-[#0B0F1A] sticky z-30 overflow-y-auto scrollbar-hide"
-      style={{ 
-        top: `${totalOffset}px`, 
-        height: `calc(100vh - ${totalOffset}px)`,
-      }}
-    >
-      {/* LABEL DE SECTION */}
-      <div className="px-4">
-        <p className="text-[9px] font-[1000] text-slate-600 uppercase tracking-[0.3em]">
-          Menu Principal
-        </p>
-      </div>
+    <>
+      {/* Sidebar Desktop */}
+      <aside className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-6 bg-[#0B0F1A] h-screen sticky top-0 overflow-y-auto">
+        <nav className="flex-1 flex flex-col gap-6">
+          {filteredMenu.map((section) => (
+            <div key={section.title}>
+              <p className="px-4 mb-3 text-[10px] font-[1000] text-slate-600 uppercase tracking-[0.2em]">
+                {section.title}
+              </p>
+              {section.items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    activeTab === item.id 
+                      ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10' 
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span className="text-[11px] font-black uppercase tracking-widest">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      {/* BOUTONS D'ACTION RAPIDE (Style Nano-UI) */}
-      <div className="px-2 space-y-2.5">
-        <button 
-          onClick={() => setActiveTab('create-store')}
-          className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl transition-all group active:scale-95 ${
-            activeTab === 'create-store' 
-              ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' 
-              : 'bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white border border-blue-500/10'
-          }`}
-        >
-          <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Créer Boutique</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('add-product')}
-          className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl transition-all group active:scale-95 border ${
-            activeTab === 'add-product' 
-              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
-              : 'bg-transparent border-white/5 text-slate-400 hover:border-emerald-500/50 hover:text-emerald-500'
-          }`}
-        >
-          <PackagePlus className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Ajouter Produit</span>
-        </button>
-      </div>
-
-      {/* NAVIGATION TABS */}
-      <nav className="flex flex-col gap-1 w-full flex-1">
-        {menuItems.map((item) => {
-          const isActive = activeTab === item.id;
-          
-          return (
-            <button 
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all group relative ${
-                isActive 
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10' 
-                : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <item.icon className={`w-4 h-4 transition-transform duration-300 ${isActive ? 'text-blue-500 scale-110' : 'group-hover:scale-110'}`} />
-                <span className="text-[9px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
-                  {item.label}
-                </span>
-              </div>
-
-              {isActive && (
-                <div className="w-1 h-1 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,1)]" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* PIED DE SIDEBAR */}
-      <div className="pt-4 border-t border-white/5 mt-auto">
-        <button 
-          onClick={handleLogout}
-          className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition-all w-full group"
-        >
-          <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Déconnexion</span>
-        </button>
-        
-        <div className="mt-4 px-4 opacity-20">
-          <p className="text-[6px] font-black text-white uppercase tracking-[0.4em]">
-            SpaceAuto System v3.1
-          </p>
+        <div className="pt-4 border-t border-white/5">
+          <button 
+            onClick={handleLogout} 
+            className="flex items-center gap-4 px-4 py-3 text-slate-500 hover:text-red-400 w-full transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="text-[11px] font-black uppercase">Déconnexion</span>
+          </button>
         </div>
-      </div>
-    </aside>
+      </aside>
+
+      {/* Navigation Mobile - Toujours rendue, mais cachée sur XL */}
+      <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
+    </>
   );
 }

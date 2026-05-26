@@ -10,3 +10,13 @@
     to { transform: translateX(-100%); }
   }
 }
+
+/* Ajout pour masquer la scrollbar du carrousel tout en gardant le scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;    /* Firefox */
+}

@@ -17,7 +17,7 @@ interface Plan {
 
 const plans: Plan[] = [
   {
-    name: 'Starter',
+    name: 'Standard',
     tier: 'standard',
     price: '0',
     icon: Package,
@@ -38,7 +38,7 @@ const plans: Plan[] = [
     maxProducts: 50
   },
   {
-    name: 'Business',
+    name: 'Premuim',
     tier: 'premium',
     price: '25.000',
     icon: Crown,

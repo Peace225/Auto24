@@ -19,6 +19,7 @@ import SearchPage from './pages/SearchPage';
 import Checkout from './pages/Checkout';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import Batteries from './pages/Batteries';
+import StoreDetail from './components/features/StoreDetail';
 
 // PAGES DE SUPPORT & ASSISTANCE
 import SupportPage from './pages/support/SupportPage';
@@ -51,6 +52,7 @@ import VendorSettings from './pages/vendor/VendorSettings';
 import VendorMessages from './pages/vendor/VendorMessages';
 import VendorNotifications from './pages/vendor/VendorNotifications';
 import RegisterVendorPage from './pages/vendor/RegisterVendorPage';
+import EditProduct from './pages/vendor/EditProduct';
 
 // Pages Administration
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -94,6 +96,7 @@ function App() {
           <Route path="/return-policy" element={<ReturnPolicyPage />} />
           <Route path="/faq" element={<FaqPage />} />
           <Route path="/become-vendor" element={<BecomeVendorPage />} /> 
+          <Route path="/store/:id" element={<StoreDetail />} />
         </Route>
 
         {/* --- 2. ROUTES VENDEURS (Protégées par VendorGuard) --- */}
@@ -112,6 +115,7 @@ function App() {
           <Route path="products">
             <Route index element={<VendorProducts />} />
             <Route path="new" element={<AddProduct />} />
+            <Route path="edit/:id" element={<EditProduct />} />
           </Route>
 
           <Route path="orders" element={<VendorOrders />} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { 
-  CheckCircle, Ban, FileText, ShieldCheck, 
-  Store, User, MapPin, Loader2, Trash2, Package, Users, X
+import {
+  CheckCircle, Ban, FileText, ShieldCheck,
+  Store, User, MapPin, Loader2, Trash2, Package, X, Eye
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { toast } from 'react-hot-toast';
@@ -12,15 +12,23 @@ interface SellersManagerProps {
   setActiveTab?: (tab: string) => void;
 }
 
-export default function SellersManager({ sellers, onRefresh, setActiveTab }: SellersManagerProps) {
+const PLANS = {
+  standard: { label: 'Standard', color: 'bg-slate-500/20 text-slate-400' },
+  pro: { label: 'Pro', color: 'bg-amber-500/20 text-amber-400' },
+  premium: { label: 'Premium', color: 'bg-violet-500/20 text-violet-400' },
+};
+
+export default function SellersManager({ sellers, onRefresh }: SellersManagerProps) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'pending' | 'approved'>('pending');
-
   const [storeToDelete, setStoreToDelete] = useState<{id: string, name: string} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [selectedStore, setSelectedStore] = useState<any>(null);
+  const [storeProducts, setStoreProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const openDocument = (url: string) => {
     if (url) window.open(url, '_blank');
@@ -31,19 +39,20 @@ export default function SellersManager({ sellers, onRefresh, setActiveTab }: Sel
     setProcessingId(sellerId);
     try {
       const { error } = await supabase
-        .from('profiles')
-        .update({ 
+      .from('profiles')
+      .update({
           status: 'approved',
           is_verified: true,
           role: 'vendor',
-          rejection_reason: null 
+          rejection_reason: null,
+          subscription_plan: 'standard',
+          subscription_status: 'active'
         })
-        .eq('id', sellerId);
-
+      .eq('id', sellerId);
       if (error) throw error;
-      toast.success("Boutique certifiée !");
-      onRefresh(); 
-    } catch (error: any) {
+      toast.success("Boutique certifiée!");
+      onRefresh();
+    } catch {
       toast.error("Erreur d'approbation");
     } finally {
       setProcessingId(null);
@@ -54,184 +63,213 @@ export default function SellersManager({ sellers, onRefresh, setActiveTab }: Sel
     if (!rejectReason.trim()) return toast.error("Motif requis");
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'rejected', is_verified: false, rejection_reason: rejectReason })
-        .eq('id', rejectingId);
-
-      if (error) throw error;
-      toast.error("Demande rejetée.");
+      await supabase
+      .from('profiles')
+      .update({ status: 'rejected', is_verified: false, rejection_reason: rejectReason })
+      .eq('id', rejectingId);
+      toast.error("Demande rejetée");
       setRejectingId(null);
       setRejectReason("");
       onRefresh();
-    } catch (error: any) {
-      toast.error("Erreur de rejet");
+    } catch {
+      toast.error("Erreur");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDeleteClick = (storeId: string, storeName: string) => {
-    setStoreToDelete({ id: storeId, name: storeName });
   };
 
   const confirmDeleteStore = async () => {
     if (!storeToDelete) return;
     setIsDeleting(true);
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', storeToDelete.id);
-      if (error) throw error;
+      await supabase.from('profiles').delete().eq('id', storeToDelete.id);
       toast.success("Boutique supprimée");
       setStoreToDelete(null);
       onRefresh();
-    } catch (error) {
-      toast.error("Erreur de suppression");
+    } catch {
+      toast.error("Erreur suppression");
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const displayedSellers = sellers.filter(s => {
-    if (filter === 'pending') return s.status === 'pending' || (s.role === 'vendor' && !s.is_verified && s.status !== 'rejected');
-    return s.status === 'approved' || s.is_verified === true;
-  });
+  const openStoreProducts = async (store: any) => {
+    setSelectedStore(store);
+    setLoadingProducts(true);
+    const { data } = await supabase
+    .from('products')
+    .select('*')
+    .eq('vendor_id', store.id)
+    .order('created_at', { ascending: false });
+    setStoreProducts(data || []);
+    setLoadingProducts(false);
+  };
+
+  const handleApproveProduct = async (productId: string) => {
+    await supabase.from('products').update({ status: 'active', is_official: true }).eq('id', productId);
+    toast.success("Produit validé");
+    openStoreProducts(selectedStore);
+  };
+
+  const handleRejectProduct = async (productId: string) => {
+    await supabase.from('products').update({ status: 'rejected' }).eq('id', productId);
+    toast.error("Produit rejeté");
+    openStoreProducts(selectedStore);
+  };
+
+  const pendingSellers = sellers.filter(s => s.status === 'pending' || (s.role === 'vendor' &&!s.is_verified && s.status!== 'rejected'));
+  const approvedSellers = sellers.filter(s => s.status === 'approved' || s.is_verified);
 
   return (
-    <div className="space-y-3 md:space-y-8 animate-in fade-in duration-700 pb-20">
-      
-      {/* 🔴 MODALE SUPPRESSION ULTRA-COMPACTE */}
-      {storeToDelete && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-          <div className="bg-[#111625] border border-red-500/20 p-4 md:p-10 rounded-xl md:rounded-[2.5rem] w-full max-w-[260px] md:max-w-md shadow-2xl relative">
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-10 h-10 md:w-20 md:h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-3 md:mb-6 border border-red-500/20">
-                <Store className="w-4 h-4 md:w-10 md:h-10 text-red-500" />
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-700 pb-20">
+
+      {/* MODALE PRODUITS */}
+      {selectedStore && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0B0F19] border border-white/10 rounded-3xl w-full max-w-5xl max-h- overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <Store className="text-amber-500" size={24} />
+                <div>
+                  <h3 className="text-xl font-black text-white">{selectedStore.store_name}</h3>
+                  <p className="text-xs text-slate-500">{storeProducts.length} produits</p>
+                </div>
+                <span className={`text- px-2 py-1 rounded-lg font-bold ${PLANS[selectedStore.subscription_plan as keyof typeof PLANS]?.color || PLANS.standard.color}`}>
+                  {PLANS[selectedStore.subscription_plan as keyof typeof PLANS]?.label || 'Standard'}
+                </span>
               </div>
-              <h3 className="text-sm md:text-2xl font-black uppercase italic text-white mb-2">Supprimer ?</h3>
-              <p className="text-[7px] md:text-[10px] text-slate-400 font-black uppercase tracking-widest leading-relaxed mb-5">
-                Supprimer <span className="text-white">"{storeToDelete.name}"</span> ? <br/>
-                <span className="text-red-400">⚠️ Action irréversible.</span>
-              </p>
-              <div className="flex w-full gap-2 md:gap-4">
-                <button onClick={() => setStoreToDelete(null)} className="flex-1 py-2 md:py-4 bg-white/5 text-slate-300 rounded-lg md:rounded-xl font-black uppercase text-[7px] md:text-[10px]">Annuler</button>
-                <button onClick={confirmDeleteStore} className="flex-1 bg-red-600 text-white rounded-lg md:rounded-xl font-black uppercase text-[7px] md:text-[10px] flex items-center justify-center gap-2">
-                  {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirmer"}
-                </button>
-              </div>
+              <button onClick={() => setSelectedStore(null)} className="p-2 hover:bg-white/10 rounded-xl"><X size={20} className="text-white" /></button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {loadingProducts? (
+                <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-500" size={32} /></div>
+              ) : storeProducts.length === 0? (
+                <p className="text-center text-slate-500 py-20">Aucun produit</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {storeProducts.map(p => (
+                    <div key={p.id} className="bg-white/5 rounded-2xl p-3 border border-white/10">
+                      <div className="aspect-square rounded-xl overflow-hidden mb-3 bg-black">
+                        <img src={p.images?.[0] || '/placeholder.png'} className="w-full h-full object-cover" alt="" />
+                      </div>
+                      <p className="text-xs font-bold truncate text-white mb-1">{p.name}</p>
+                      <p className="text-sm text-amber-500 font-black mb-3">{Number(p.price)?.toLocaleString()} F</p>
+                      <div className="flex gap-1.5">
+                        {p.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleApproveProduct(p.id)} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text- font-black text-white">Valider</button>
+                            <button onClick={() => handleRejectProduct(p.id)} className="px-2 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg"><Ban size={14} /></button>
+                          </>
+                        )}
+                        {p.status === 'active' && <span className="text- text-emerald-400 font-bold">✓ Actif</span>}
+                        {p.status === 'rejected' && <span className="text- text-red-400 font-bold">✗ Rejeté</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* HEADER AVEC ONGLETS COMPACTS */}
-      <div className="bg-[#111625] border border-white/5 rounded-xl md:rounded-[2.5rem] p-3 md:p-8 flex flex-col md:flex-row justify-between gap-3 md:gap-6 shadow-2xl">
-        <div>
-          <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-2">
-            <Users className="w-3.5 h-3.5 md:w-6 md:h-6 text-blue-500" />
-            <h2 className="text-base md:text-2xl font-[1000] uppercase tracking-tighter text-white italic">Partenaires</h2>
+      {/* MODALE REJET */}
+      {rejectingId && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#111625] border border-white/10 rounded-3xl p-6 w-full max-w-md">
+            <h3 className="text-white font-black mb-4">Motif du rejet</h3>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="w-full h-24 bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm outline-none" placeholder="Documents illisibles..." />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setRejectingId(null)} className="flex-1 py-2.5 bg-white/10 rounded-xl text-white font-bold">Annuler</button>
+              <button onClick={handleReject} disabled={loading} className="flex-1 py-2.5 bg-red-600 rounded-xl text-white font-bold">{loading? '...' : 'Rejeter'}</button>
+            </div>
           </div>
-          <p className="text-[6px] md:text-[10px] text-slate-500 font-black uppercase tracking-widest md:ml-9">
-            {displayedSellers.length} boutique(s)
-          </p>
         </div>
+      )}
 
-        <div className="flex p-0.5 md:p-1 bg-black/40 rounded-lg md:rounded-2xl border border-white/5 self-end md:self-auto">
-          <button onClick={() => setFilter('pending')} className={`px-2.5 md:px-6 py-1.5 md:py-3 rounded-md md:rounded-xl text-[7px] md:text-[10px] font-black uppercase tracking-widest transition-all ${filter === 'pending' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-            Dossiers
-          </button>
-          <button onClick={() => setFilter('approved')} className={`px-2.5 md:px-6 py-1.5 md:py-3 rounded-md md:rounded-xl text-[7px] md:text-[10px] font-black uppercase tracking-widest transition-all ${filter === 'approved' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-            Actifs
-          </button>
+      {/* MODALE SUPPRESSION */}
+      {storeToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90">
+          <div className="bg-[#111625] border border-red-500/20 p-8 rounded-3xl w-full max-w-sm text-center">
+            <Trash2 className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-xl font-black text-white mb-2">Supprimer?</h3>
+            <p className="text-sm text-slate-400 mb-6">"{storeToDelete.name}" sera définitivement supprimée</p>
+            <div className="flex gap-3">
+              <button onClick={() => setStoreToDelete(null)} className="flex-1 py-3 bg-white/10 rounded-xl text-white font-bold">Annuler</button>
+              <button onClick={confirmDeleteStore} disabled={isDeleting} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-bold flex items-center justify-center gap-2">
+                {isDeleting? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmer"}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* LISTE DES BOUTIQUES (Cartes Nano sur Mobile) */}
-      <div className="grid gap-2.5 md:gap-8">
-        {displayedSellers.map((s: any) => (
-          <div key={s.id} className="bg-[#111625] border border-white/5 p-3 md:p-8 rounded-xl md:rounded-[2.5rem] relative overflow-hidden group">
-            {processingId === s.id && (
-              <div className="absolute inset-0 bg-[#111625]/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-              </div>
-            )}
-            
-            <div className="flex flex-col md:flex-row justify-between items-start gap-3 md:gap-8">
-              <div className="flex gap-3 md:gap-6 items-start w-full md:w-auto">
-                <div className="h-10 w-10 md:h-20 md:w-20 rounded-lg md:rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center font-[1000] text-lg md:text-3xl text-blue-500 uppercase overflow-hidden shrink-0">
-                  {s.avatar_url ? <img src={s.avatar_url} className="w-full h-full object-cover" /> : <Store className="w-5 h-5 md:w-8 md:h-8" />}
-                </div>
-                <div className="space-y-0.5 md:space-y-1 flex-1">
-                  <h3 className="text-sm md:text-2xl font-[1000] text-white uppercase italic truncate">{s.store_name || "Boutique"}</h3>
-                  <div className="flex flex-wrap gap-1.5 md:gap-2">
-                    <span className="text-[6px] md:text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1"><User size={8} className="md:w-3 md:h-3"/> {s.full_name || "Admin"}</span>
-                    {s.commune && <span className="text-[6px] md:text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1"><MapPin size={8} className="md:w-3 md:h-3"/> {s.commune}</span>}
+      {/* BOUTIQUES EN ATTENTE */}
+      <div className="bg-[#0B0F19] border border-amber-500/20 rounded-3xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <ShieldCheck className="w-6 h-6 text-amber-500" />
+          <h2 className="text-xl font-black text-amber-500 uppercase">En attente ({pendingSellers.length})</h2>
+        </div>
+        <div className="space-y-3">
+          {pendingSellers.length === 0 && <p className="text-slate-500 text-center py-8 text-sm">Aucune demande</p>}
+          {pendingSellers.map((s: any) => (
+            <div key={s.id} className="bg-black/40 border border-white/10 p-4 rounded-2xl hover:border-amber-500/50 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex gap-4 items-center cursor-pointer flex-1" onClick={() => openStoreProducts(s)}>
+                  <div className="h-12 w-12 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden">
+                    {s.avatar_url? <img src={s.avatar_url} className="w-full h-full object-cover" /> : <Store className="w-6 h-6 text-amber-500" />}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white">{s.store_name || 'Sans nom'}</h3>
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1"><User size={12}/> {s.full_name} • <MapPin size={12}/> {s.commune || 'Abidjan'}</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Documents KYC */}
-              {(s.id_url || s.rccm_url) && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 md:gap-2 w-full md:w-auto mt-1 md:mt-0">
-                  <DocPreviewButton label="ID" exists={!!s.id_url} onClick={() => openDocument(s.id_url)} />
-                  <DocPreviewButton label="RCCM" exists={!!s.rccm_url} onClick={() => openDocument(s.rccm_url)} />
+                <div className="flex gap-2">
+                  <button onClick={() => openDocument(s.id_card_url || s.business_license_url)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl" title="Documents"><FileText size={16} className="text-slate-400" /></button>
+                  <button onClick={() => setRejectingId(s.id)} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 rounded-xl" title="Rejeter"><Ban size={16} className="text-red-400" /></button>
+                  <button onClick={() => handleApprove(s.id)} disabled={processingId === s.id} className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black text-white uppercase flex items-center gap-1.5">
+                    {processingId === s.id? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />} Valider
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
-
-            <div className="pt-3 md:pt-8 mt-3 md:mt-8 border-t border-white/5 flex flex-wrap justify-between items-center gap-2 md:gap-4">
-               <div className="flex gap-2.5">
-                  <Benefit icon={ShieldCheck} text="Certifié" active={s.is_verified} />
-                  <Benefit icon={Package} text="Vendeur" active={s.role === 'vendor'} />
-               </div>
-
-               {/* BOUTONS D'ACTION RÉDUITS */}
-               <div className="flex gap-1.5 md:gap-2 w-full md:w-auto">
-                 <button 
-                  onClick={() => handleDeleteClick(s.id, s.store_name || "Boutique")}
-                  className="p-1.5 md:p-4 bg-red-500/10 text-red-500 rounded-lg md:rounded-2xl hover:bg-red-50 transition-all"
-                 >
-                   <Trash2 size={12} className="md:w-[18px] md:h-[18px]" />
-                 </button>
-
-                 {filter === 'pending' ? (
-                   <button onClick={() => handleApprove(s.id)} className="flex-1 px-3 md:px-8 py-1.5 md:py-4 bg-blue-600 text-white rounded-lg md:rounded-2xl font-black uppercase text-[7px] md:text-[10px] tracking-widest transition-all">
-                     Valider
-                   </button>
-                 ) : (
-                   <button 
-                    onClick={() => {
-                      localStorage.setItem('admin_product_filter_vendor', s.id);
-                      if (setActiveTab) setActiveTab('products');
-                    }}
-                    className="flex-1 px-3 md:px-8 py-1.5 md:py-4 bg-emerald-600 text-white rounded-lg md:rounded-2xl font-black uppercase text-[7px] md:text-[10px] tracking-widest transition-all"
-                   >
-                     Catalogue
-                   </button>
-                 )}
-               </div>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  );
-}
 
-// Sous-composants ajustés pour le mode Nano
-function DocPreviewButton({ label, exists, onClick }: any) {
-  return (
-    <button onClick={onClick} disabled={!exists} className={`p-1.5 md:p-4 rounded-md md:rounded-xl border flex flex-col items-center gap-1 md:gap-2 transition-all ${exists ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-500' : 'opacity-20'}`}>
-      <FileText size={12} className="md:w-5 md:h-5" />
-      <span className="text-[6px] md:text-[8px] font-black uppercase">{label}</span>
-    </button>
-  );
-}
-
-function Benefit({ icon: Icon, text, active }: any) {
-  return (
-    <div className={`flex items-center gap-1 md:gap-1.5 ${active ? 'text-blue-500' : 'text-slate-700'}`}>
-      <Icon size={10} className="md:w-4 md:h-4" />
-      <span className="text-[6px] md:text-[9px] font-black uppercase tracking-widest">{text}</span>
+      {/* BOUTIQUES VALIDÉES */}
+      <div className="bg-[#0B0F19] border border-emerald-500/20 rounded-3xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <CheckCircle className="w-6 h-6 text-emerald-500" />
+          <h2 className="text-xl font-black text-emerald-500 uppercase">Validées ({approvedSellers.length})</h2>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          {approvedSellers.map((s: any) => (
+            <div key={s.id} className="bg-black/40 border border-white/10 p-4 rounded-2xl hover:border-emerald-500/30 transition-all group cursor-pointer" onClick={() => openStoreProducts(s)}>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-3 items-center">
+                  <div className="h-11 w-11 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden">
+                    {s.avatar_url? <img src={s.avatar_url} className="w-full h-full object-cover" /> : <Store className="w-5 h-5 text-emerald-500" />}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-sm">{s.store_name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text- px-2 py-0.5 rounded font-bold ${PLANS[s.subscription_plan as keyof typeof PLANS]?.color || PLANS.standard.color}`}>
+                        {PLANS[s.subscription_plan as keyof typeof PLANS]?.label || 'Standard'}
+                      </span>
+                      <span className="text- text-slate-500">{s.product_count || 0} produits</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(s.id, s.store_name); }} className="p-2 hover:bg-red-500/20 rounded-lg"><Trash2 size={14} className="text-red-400" /></button>
+                  <Eye size={16} className="text-slate-600" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

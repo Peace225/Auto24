@@ -1,373 +1,196 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  Search, 
-  Send, 
-  User, 
-  MoreHorizontal, 
-  Phone, 
-  MessageSquare,
-  ArrowLeft,
-  Loader2,
-  CheckCheck
-} from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Package, Shield, Crown, Send, Loader2, Check, CheckCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
-import { toast } from 'react-hot-toast';
 
-interface Contact {
-  id: string;
-  name: string;
-  lastMsg: string;
-  time: string;
-  unread: number;
-  avatar?: string;
-}
-
-interface Message {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  content: string;
-  created_at: string;
-  is_read: boolean;
-}
+const ADMIN_ID = '381661f7-7566-4b79-b94a-6fa274dba084';
 
 export default function VendorMessages() {
   const { user } = useAuthStore();
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [loadingContacts, setLoadingContacts] = useState(true);
-  const [loadingChat, setLoadingChat] = useState(false);
+  const [vendorPlan, setVendorPlan] = useState('Standard');
+  const [adminStatus, setAdminStatus] = useState<'online' | 'offline'>('offline');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeout = useRef<NodeJS.Timeout>();
+  const channelRef = useRef<any>(null);
 
-  // --- 1. CHARGER LES CONTACTS (AVEC NOMS RÉELS) ---
-  const fetchContacts = useCallback(async () => {
-    if (!user) return;
-    try {
-      // On récupère les messages ET les profils associés pour avoir les noms
-      const { data: recentMessages, error } = await supabase
-        .from('messages')
-        .select(`
-          sender_id, 
-          receiver_id, 
-          content, 
-          created_at, 
-          is_read,
-          sender:profiles!messages_sender_id_fkey(full_name, avatar_url),
-          receiver:profiles!messages_receiver_id_fkey(full_name, avatar_url)
-        `)
-        .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const formatDate = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) + ' · ' + new Date(iso).toLocaleDateString('fr-FR', {day:'2-digit',month:'short'});
 
-      if (error) throw error;
-
-      const contactsMap = new Map<string, Contact>();
-      
-      recentMessages?.forEach((msg: any) => {
-        const isIAsender = msg.sender_id === user.id;
-        const contactId = isIAsender ? msg.receiver_id : msg.sender_id;
-        const profile = isIAsender ? msg.receiver : msg.sender;
-        
-        if (!contactsMap.has(contactId)) {
-          contactsMap.set(contactId, {
-            id: contactId,
-            name: profile?.full_name || `Client #${contactId.substring(0, 4)}`,
-            avatar: profile?.avatar_url,
-            lastMsg: msg.content,
-            time: new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            unread: (!isIAsender && !msg.is_read) ? 1 : 0
-          });
-        } else if (!isIAsender && !msg.is_read) {
-          const existing = contactsMap.get(contactId)!;
-          contactsMap.set(contactId, { ...existing, unread: existing.unread + 1 });
-        }
-      });
-
-      setContacts(Array.from(contactsMap.values()));
-    } catch (err) {
-      console.error("Erreur contacts:", err);
-    } finally {
-      setLoadingContacts(false);
-    }
-  }, [user]);
-
-  // --- 2. CHARGER LES MESSAGES D'UNE DISCUSSION ---
-  const fetchMessages = useCallback(async (contactId: string) => {
-    if (!user) return;
-    setLoadingChat(true);
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${contactId}),and(sender_id.eq.${contactId},receiver_id.eq.${user.id})`)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setMessages(data || []);
-      
-      // Marquer comme lu
-      await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('receiver_id', user.id)
-        .eq('sender_id', contactId)
-        .eq('is_read', false);
-        
-      // Mettre à jour les badges de notification localement
-      setContacts(prev => prev.map(c => c.id === contactId ? { ...c, unread: 0 } : c));
-    } catch (err) {
-      console.error("Erreur chat:", err);
-    } finally {
-      setLoadingChat(false);
-      scrollToBottom();
-    }
-  }, [user]);
-
-  // --- 3. GESTION DU TEMPS RÉEL ---
+  // INIT - trouve ou crée la conversation
   useEffect(() => {
-    fetchContacts();
+    if (!user) return;
+    const init = async () => {
+      const { data: profile } = await supabase.from('profiles').select('subscription_plan').eq('id', user.id).single();
+      if (profile?.subscription_plan) setVendorPlan(profile.subscription_plan.charAt(0).toUpperCase() + profile.subscription_plan.slice(1));
 
-    const subscription = supabase
-      .channel('vendor-messages-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        const newMsg = payload.new as Message;
-        
-        // Si le message nous concerne
-        if (newMsg.receiver_id === user?.id || newMsg.sender_id === user?.id) {
-          fetchContacts(); // On rafraîchit la liste de gauche (dernier message, ordre)
+      // 1. Cherche conversation existante admin-vendor
+      let { data: conv } = await supabase.from('conversations')
+      .select('id')
+      .eq('vendor_id', user.id)
+      .eq('client_id', ADMIN_ID)
+      .maybeSingle();
 
-          // Si c'est la discussion actuellement ouverte
-          if (selectedChat === newMsg.sender_id || selectedChat === newMsg.receiver_id) {
-            setMessages(prev => {
-              // Éviter les doublons si l'envoi local a déjà ajouté le message
-              if (prev.find(m => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-            scrollToBottom();
-            
-            // Si c'est un message reçu, on le marque comme lu immédiatement
-            if (newMsg.receiver_id === user?.id) {
-               supabase.from('messages').update({ is_read: true }).eq('id', newMsg.id).then();
-            }
-          } else if (newMsg.receiver_id === user?.id) {
-            toast.success("Nouveau message reçu");
-          }
+      // 2. Crée si n'existe pas
+      if (!conv) {
+        const { data: newConv } = await supabase.from('conversations')
+        .insert({ vendor_id: user.id, client_id: ADMIN_ID, last_message: 'Conversation démarrée' })
+        .select('id').single();
+        conv = newConv;
+      }
+      setConversationId(conv!.id);
+
+      // 3. Charge messages par conversation_id (PAS par sender/receiver)
+      const { data } = await supabase.from('messages')
+      .select('*')
+      .eq('conversation_id', conv!.id)
+      .order('created_at', { ascending: true });
+
+      setMessages(data || []);
+      setIsLoading(false);
+      setTimeout(scrollToBottom, 100);
+
+      // marque lu
+      await supabase.from('messages').update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('conversation_id', conv!.id).eq('receiver_id', user.id);
+    };
+    init();
+  }, [user]);
+
+  // REALTIME - filtré par conversation
+  useEffect(() => {
+    if (!user ||!conversationId) return;
+
+    const channel = supabase.channel(`conv-${conversationId}`)
+    .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}` // ← CRITIQUE
+      }, (payload) => {
+        const m = payload.new;
+        setMessages(p => p.find(x => x.id === m.id)? p : [...p, m]);
+        if (m.receiver_id === user.id) {
+          supabase.from('messages').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', m.id);
+        }
+        scrollToBottom();
+      })
+    .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`
+      }, (payload) => {
+        setMessages(p => p.map(x => x.id === payload.new.id? payload.new : x));
+      })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.user_id === ADMIN_ID) {
+          setIsTyping(true);
+          clearTimeout(typingTimeout.current);
+          typingTimeout.current = setTimeout(() => setIsTyping(false), 2000);
         }
       })
-      .subscribe();
+    .subscribe();
 
-    return () => { supabase.removeChannel(subscription); };
-  }, [user, selectedChat, fetchContacts]);
+    channelRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, [user, conversationId]);
 
+  // Présence admin
   useEffect(() => {
-    if (selectedChat) fetchMessages(selectedChat);
-  }, [selectedChat, fetchMessages]);
+    const check = async () => {
+      const { data } = await supabase.from('profiles').select('last_seen').eq('id', ADMIN_ID).single();
+      if (data) setAdminStatus(Date.now() - new Date(data.last_seen).getTime() < 65000? 'online' : 'offline');
+    };
+    check();
+    const id = setInterval(check, 15000);
+    return () => clearInterval(id);
+  }, []);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
-
-  // --- 4. ENVOYER UN MESSAGE ---
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !selectedChat) return;
+    if (!newMessage.trim() ||!user ||!conversationId) return;
 
     const content = newMessage.trim();
     setNewMessage('');
 
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert([{
-          sender_id: user.id,
-          receiver_id: selectedChat,
-          content
-        }])
-        .select()
-        .single();
+    // typing
+    channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id } });
 
-      if (error) throw error;
-      // Le message sera ajouté par le Realtime, mais on peut l'ajouter ici pour plus de réactivité
-      setMessages(prev => [...prev, data]);
-      scrollToBottom();
-    } catch (err) {
-      toast.error("Échec de l'envoi");
-    }
+    await supabase.from('messages').insert({
+      conversation_id: conversationId, // ← INDISPENSABLE
+      sender_id: user.id,
+      receiver_id: ADMIN_ID,
+      sender_type: 'vendor',
+      content,
+      is_read: false
+    });
+
+    // update conversation
+    await supabase.from('conversations')
+    .update({ last_message: content, updated_at: new Date().toISOString() })
+    .eq('id', conversationId);
   };
 
-  const currentContact = contacts.find(c => c.id === selectedChat);
+  const PlanIcon = vendorPlan === 'Premium'? Crown : vendorPlan === 'Pro'? Shield : Package;
 
   return (
-    <div className="w-full max-w-7xl mx-auto flex flex-col h-[calc(100vh-140px)] animate-in fade-in duration-500">
-      
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-6 overflow-hidden">
-        
-        {/* LISTE DES CONTACTS */}
-        <div className={`lg:col-span-4 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col h-full
-          ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
-        >
-          <div className="p-6 border-b border-slate-50">
-            <h1 className="text-xl font-[1000] uppercase text-slate-900 tracking-tighter flex items-center gap-3 mb-4">
-              <MessageSquare className="w-5 h-5 text-blue-600" />
-              Messages
-            </h1>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Rechercher un client..." 
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-2xl text-xs font-bold border border-transparent focus:border-blue-500 focus:bg-white transition-all outline-none"
-              />
-            </div>
-          </div>
+    <div className="flex h-[calc(100vh-120px)] border border-slate-200 rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div className="w-80 border-r p-8 bg-slate-50 flex flex-col">
+        <h2 className="text-xl font-black text-slate-900 mb-8">Support Admin</h2>
+        <div className="bg-white p-5 rounded-2xl border mb-8 flex items-center gap-3">
+          <PlanIcon size={24} className={vendorPlan === 'Premium'? 'text-amber-500' : 'text-blue-500'} />
+          <span className="font-bold">{vendorPlan} Plan</span>
+        </div>
+        <div className="mt-auto flex items-center gap-2 text-sm">
+          <div className={`w-2 h-2 rounded-full ${adminStatus === 'online'? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+          <span className="font-medium text-slate-600">{isTyping? 'Admin écrit...' : adminStatus === 'online'? 'En ligne' : 'Hors ligne'}</span>
+        </div>
+      </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
-            {loadingContacts ? (
-              <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
-            ) : contacts.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <User className="text-slate-300 w-6 h-6" />
+      <div className="flex-1 flex flex-col bg-[#F8FAFC]">
+        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+          {isLoading? <div className="flex justify-center pt-20"><Loader2 className="animate-spin text-slate-400" /></div> :
+            messages.map((m) => {
+              const isMe = m.sender_id === user?.id;
+              return (
+                <div key={m.id} className={`flex ${isMe? 'justify-end' : 'justify-start'}`}>
+                  <div className="max-w-[70%]">
+                    <div className={`p-5 rounded-3xl shadow-sm ${isMe? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
+                      <p className="text- leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                    </div>
+                    <div className={`flex items-center gap-1.5 mt-2 px-1 ${isMe? 'justify-end' : 'justify-start'}`}>
+                      <span className="text- text-slate-400">{formatDate(m.created_at)}</span>
+                      {isMe && (m.is_read? <CheckCheck size={14} className="text-emerald-500" /> : <Check size={14} className="text-slate-400" />)}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aucune discussion</p>
-              </div>
-            ) : (
-              contacts.map(c => (
-                <button 
-                  key={c.id} 
-                  onClick={() => setSelectedChat(c.id)}
-                  className={`w-full p-4 rounded-2xl transition-all duration-200 flex items-center gap-4 group
-                    ${selectedChat === c.id ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-50'}`}
-                >
-                  <div className="relative shrink-0">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden
-                      ${selectedChat === c.id ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
-                      {c.avatar ? <img src={c.avatar} className="w-full h-full object-cover" /> : <User className="w-5 h-5" />}
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-w-0 text-left">
-                    <div className="flex justify-between items-center mb-1">
-                      <p className={`text-xs font-[1000] uppercase tracking-tight truncate ${selectedChat === c.id ? 'text-white' : 'text-slate-900'}`}>
-                        {c.name}
-                      </p>
-                      <span className={`text-[8px] font-black ${selectedChat === c.id ? 'text-blue-200' : 'text-slate-400'}`}>
-                        {c.time}
-                      </span>
-                    </div>
-                    <p className={`text-[10px] font-medium truncate ${selectedChat === c.id ? 'text-blue-100/80' : 'text-slate-500'}`}>
-                      {c.lastMsg}
-                    </p>
-                  </div>
-
-                  {c.unread > 0 && selectedChat !== c.id && (
-                    <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 animate-bounce">
-                      {c.unread}
-                    </div>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
+              );
+            })}
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* ZONE DE CHAT */}
-        <div className={`lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full overflow-hidden
-          ${!selectedChat ? 'hidden lg:flex' : 'flex'}`}
-        >
-          {selectedChat ? (
-            <>
-              {/* Header Chat */}
-              <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-md">
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setSelectedChat(null)} className="lg:hidden p-2 text-slate-400">
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 border border-blue-100">
-                    {currentContact?.avatar ? <img src={currentContact.avatar} className="w-full h-full object-cover rounded-xl" /> : <User className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-[1000] uppercase text-slate-900 tracking-tight">{currentContact?.name}</h3>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">En ligne</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                   <button className="p-2.5 hover:bg-slate-50 rounded-xl transition-colors text-slate-400"><Phone className="w-4 h-4" /></button>
-                   <button className="p-2.5 hover:bg-slate-50 rounded-xl transition-colors text-slate-400"><MoreHorizontal className="w-4 h-4" /></button>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 p-4 md:p-6 overflow-y-auto bg-slate-50/30 space-y-4">
-                {loadingChat ? (
-                   <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
-                ) : (
-                  <>
-                    {messages.map((msg) => {
-                      const isMe = msg.sender_id === user?.id;
-                      return (
-                        <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          {!isMe && <div className="w-6 h-6 bg-slate-200 rounded-lg shrink-0 mb-1 overflow-hidden">
-                            {currentContact?.avatar && <img src={currentContact.avatar} className="w-full h-full object-cover" />}
-                          </div>}
-                          <div className={`max-w-[80%] md:max-w-[60%] p-4 rounded-2xl shadow-sm
-                            ${isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none'}`}
-                          >
-                            <p className="text-xs md:text-sm leading-relaxed font-medium">{msg.content}</p>
-                            <div className="flex items-center justify-end gap-1 mt-1.5">
-                              <span className={`text-[8px] font-black uppercase ${isMe ? 'text-blue-200' : 'text-slate-300'}`}>
-                                {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                              </span>
-                              {isMe && <CheckCheck className={`w-3 h-3 ${msg.is_read ? 'text-emerald-400' : 'text-blue-300'}`} />}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
-              </div>
-
-              {/* Input */}
-              <div className="p-4 bg-white border-t border-slate-50">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5 transition-all">
-                  <input 
-                    type="text" 
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Écrire votre réponse..." 
-                    className="flex-1 bg-transparent border-none outline-none text-xs md:text-sm font-bold text-slate-900 px-3 py-2"
-                  />
-                  <button 
-                    type="submit"
-                    disabled={!newMessage.trim()}
-                    className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md active:scale-95 shrink-0"
-                  >
-                    <Send className="w-4 h-4 md:w-5 md:h-5" />
-                  </button>
-                </form>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col justify-center items-center text-center p-10 bg-slate-50/20">
-              <div className="w-20 h-20 bg-white shadow-xl shadow-blue-500/5 rounded-[2rem] flex items-center justify-center text-blue-500 mb-6 border border-slate-100">
-                <MessageSquare className="w-10 h-10" />
-              </div>
-              <h2 className="text-lg font-[1000] uppercase text-slate-900 tracking-tighter mb-2">Centre de Messagerie</h2>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest max-w-xs leading-relaxed">
-                Sélectionnez un client pour répondre à ses questions et finaliser vos ventes.
-              </p>
-            </div>
-          )}
-        </div>
+        <form onSubmit={handleSend} className="p-6 bg-white border-t border-slate-100">
+          <div className="relative flex items-center max-w-3xl mx-auto">
+            <input
+              className="w-full bg-slate-100 rounded-full py-4 pl-6 pr-14 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              value={newMessage}
+              onChange={e => {
+                setNewMessage(e.target.value);
+                channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { user_id: user?.id } });
+              }}
+              placeholder="Écrire à l'admin..."
+            />
+            <button type="submit" disabled={!newMessage.trim()} className="absolute right-1.5 bg-slate-900 hover:bg-indigo-600 disabled:opacity-50 text-white p-2.5 rounded-full transition-all">
+              <Send size={16} />
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
