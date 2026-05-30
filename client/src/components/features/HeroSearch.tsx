@@ -110,34 +110,6 @@ export default function HeroSearch() {
           </div>
         </div>
       </div>
-
-      {/* 🟢 LIGNE 3 : CATÉGORIE & ZONE */}
-      <div className="grid grid-cols-1 gap-3">
-        <div>
-          <label className={labelStyle}><Wrench className="w-3 h-3" /> Catégorie de pièce</label>
-          <div className="relative">
-            <select className={selectStyle} value={filters.category} onChange={(e) => handleChange('category', e.target.value)}>
-              <option value="">Toutes les catégories</option>
-              {PART_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-600" />
-          </div>
-        </div>
-
-        <div>
-          <label className={labelStyle}><MapPin className="w-3 h-3" /> Zone</label>
-          <div className="relative">
-            <select className={selectStyle} value={filters.location} onChange={(e) => handleChange('location', e.target.value)}>
-              <option value="">Tout Abidjan</option>
-              <option value="adjame">Adjamé (Casse)</option>
-              <option value="marcory">Marcory</option>
-              <option value="cocody">Cocody</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          </div>
-        </div>
-      </div>
-
       {/* BOUTON RECHERCHER COMPACT */}
       <button 
         type="submit"

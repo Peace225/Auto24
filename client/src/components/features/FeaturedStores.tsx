@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Store, ArrowRight, ShieldCheck, Loader2, Crown, Star, Sparkles } from 'lucide-react';
+import { Store, Loader2, ChevronDown, BadgeCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface VendorStore {
@@ -10,8 +10,6 @@ interface VendorStore {
   avatar_url?: string;
   is_verified: boolean;
   status: string;
-  subscriptions?: { package_name: string; status: string }[];
-  plan?: 'premium' | 'pro' | 'standard';
 }
 
 export default function FeaturedStores() {
@@ -24,7 +22,7 @@ export default function FeaturedStores() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, store_name, commune, avatar_url, is_verified, status, subscriptions(package_name, status)')
+        .select('id, store_name, commune, avatar_url, is_verified, status')
         .eq('role', 'vendor')
         .eq('is_verified', true)
         .not('store_name', 'is', null)
@@ -32,19 +30,7 @@ export default function FeaturedStores() {
         .limit(12);
 
       if (error) throw error;
-
-      const withPlan = (data || []).map((s: any) => {
-        const active = s.subscriptions?.find((x: any) => x.status === 'active');
-        const plan = (active?.package_name || 'standard').toLowerCase() as VendorStore['plan'];
-        return { ...s, plan };
-      });
-
-      withPlan.sort((a, b) => {
-        const order = { premium: 0, pro: 1, standard: 2 };
-        return (order[a.plan!] ?? 2) - (order[b.plan!] ?? 2);
-      });
-
-      setStores(withPlan);
+      setStores(data || []);
     } catch (e) {
       console.error("Erreur chargement stores:", e);
     } finally {
@@ -61,7 +47,7 @@ export default function FeaturedStores() {
       if (scrollContainer.scrollLeft + scrollContainer.offsetWidth >= scrollContainer.scrollWidth) {
         scrollContainer.scrollTo({ left: 0, behavior: 'smooth' });
       } else {
-        scrollContainer.scrollBy({ left: 280, behavior: 'smooth' });
+        scrollContainer.scrollBy({ left: 200, behavior: 'smooth' });
       }
     }, 3000);
 
@@ -76,79 +62,80 @@ export default function FeaturedStores() {
     return () => { supabase.removeChannel(channel); };
   }, [loadStores]);
 
-  const getCardGlow = (plan?: string) => {
-    switch (plan) {
-      case 'premium': return 'before:absolute before:inset-0 before:rounded-[1.5rem] before:p-[1.5px] before:bg-gradient-to-b before:from-amber-400/80 before:to-orange-600/80 before:-z-10 hover:shadow-[0_0_40px_-12px_rgba(245,158,11,0.5)]';
-      case 'pro': return 'before:absolute before:inset-0 before:rounded-[1.5rem] before:p-[1.5px] before:bg-gradient-to-b before:from-blue-400/70 before:to-indigo-600/70 before:-z-10 hover:shadow-[0_0_40px_-12px_rgba(59,130,246,0.4)]';
-      default: return 'border border-slate-200/70 rounded-[1.5rem] hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/50';
-    }
-  };
-
-  const getBadge = (plan?: string) => {
-    if (plan === 'premium') return { Icon: Crown, label: 'PREMIUM', cls: 'from-amber-500 to-orange-600 text-white' };
-    if (plan === 'pro') return { Icon: Star, label: 'PRO', cls: 'from-blue-600 to-indigo-600 text-white' };
-    return { Icon: ShieldCheck, label: 'VÉRIFIÉ', cls: 'from-slate-800 to-slate-900 text-white' };
-  };
-
-  if (isLoading) return <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+  if (isLoading) return <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-sky-500" /></div>;
   if (!stores.length) return null;
 
   return (
-    <section className="relative py-20 overflow-hidden bg-[#FCFCFD]">
-      <div className="max-w-[1440px] mx-auto px-6">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-14 gap-8">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 text-white mb-5">
-              <Sparkles size={14} className="text-amber-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Marketplace Premium</span>
+    <section className="py-10 bg-gray-50 px-4">
+      {/* Conteneur principal style "Carte" */}
+      <div className="max-w-[1440px] mx-auto bg-white rounded-[2.5rem] shadow-[0_2px_20px_-10px_rgba(0,0,0,0.05)] p-6 md:p-8 border border-gray-100">
+        
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div className="flex items-center gap-4">
+            {/* Icône Boutique */}
+            <div className="relative flex items-center justify-center w-14 h-14 bg-sky-50 rounded-2xl">
+              <Store className="w-7 h-7 text-blue-600" />
+              <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5">
+                <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-50" />
+              </div>
             </div>
-            <h2 className="text-2xl md:text-4xl font-black tracking-tighter leading-[0.85] text-slate-900">
-              BOUTIQUES D'EXCEPTION
-            </h2>
+            
+            {/* Titre */}
+            <div>
+              <h2 className="text-2xl md:text-[32px] font-black tracking-tight text-[#1E293B] leading-none mb-1.5">
+                Boutiques <span className="text-[#00A8FF]">Officielles</span>
+              </h2>
+              <p className="text-[11px] font-bold text-gray-400 tracking-[0.15em] uppercase">
+                Les plus grandes marques en direct
+              </p>
+            </div>
           </div>
-          <Link to="/stores" className="inline-flex items-center gap-2.5 h-12 px-7 rounded-full bg-slate-900 text-white font-bold text-xs uppercase hover:bg-blue-600 transition-all">
-            Explorer tout <ArrowRight size={16} />
-          </Link>
+
+          {/* Bouton Dropdown */}
+          <button className="hidden md:flex items-center gap-3 px-5 py-2.5 border-2 border-gray-100 rounded-2xl text-[13px] font-black text-gray-600 tracking-wider hover:bg-gray-50 transition-colors">
+            TOUTES LES BOUTIQUES
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          </button>
         </div>
 
-        {/* CARROUSEL MOBILE + GRILLE DESKTOP */}
+        {/* CARROUSEL DES BOUTIQUES */}
         <div 
           ref={scrollRef}
-          className="flex gap-5 overflow-x-auto pb-8 snap-x snap-mandatory scrollbar-hide lg:grid lg:grid-cols-6 lg:overflow-visible"
+          className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {stores.map((store) => {
-            const { Icon, label, cls } = getBadge(store.plan);
-            return (
-              <div key={store.id} className="min-w-[260px] snap-center">
-                <div className={`group relative ${getCardGlow(store.plan)} rounded-[1.5rem]`}>
-                  <div className="relative bg-white rounded-[1.5rem] p-[1.5px] h-full flex flex-col overflow-hidden">
-                    <div className="absolute top-3 left-3 z-20">
-                      <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r ${cls} shadow-lg`}>
-                        <Icon size={11} />
-                        <span className="text-[9px] font-black tracking-widest">{label}</span>
-                      </div>
-                    </div>
+          {stores.map((store) => (
+            <Link 
+              key={store.id} 
+              to={`/store/${store.id}`}
+              className="min-w-[170px] h-[170px] snap-center flex-shrink-0 group"
+            >
+              <div className="relative w-full h-full bg-white border-[1.5px] border-gray-100 rounded-3xl p-4 flex flex-col items-center justify-center hover:border-sky-200 hover:shadow-lg hover:shadow-sky-100/50 transition-all duration-300">
+                
+                {/* Badge Ouvert */}
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E8F8F0]">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></div>
+                  <span className="text-[9px] font-black tracking-widest text-[#10B981] mt-px">
+                    OUVERT
+                  </span>
+                </div>
 
-                    <Link to={`/store/${store.id}`} className="flex-1 grid place-items-center aspect-[4/3] p-8">
-                      {store.avatar_url ? (
-                        <img src={store.avatar_url} alt={store.store_name} className="max-h-20 object-contain transition-transform group-hover:scale-105" />
-                      ) : (
-                        <Store className="w-14 h-14 text-slate-200" />
-                      )}
-                    </Link>
-
-                    <div className="px-5 pb-5">
-                      <h3 className="font-black text-sm text-slate-900 truncate">{store.store_name}</h3>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">{store.commune || 'Abidjan'}</p>
-                      <Link to={`/store/${store.id}`} className="mt-4 w-full h-10 flex justify-center items-center rounded-xl bg-slate-900 text-white text-[10px] font-bold uppercase hover:bg-blue-600 transition-all">
-                        Visiter <ArrowRight size={14} className="ml-1.5" />
-                      </Link>
-                    </div>
-                  </div>
+                {/* Logo */}
+                <div className="w-full h-full flex items-center justify-center mt-5">
+                  {store.avatar_url ? (
+                    <img 
+                      src={store.avatar_url} 
+                      alt={store.store_name} 
+                      className="max-h-16 max-w-[80%] object-contain group-hover:scale-105 transition-transform duration-300" 
+                    />
+                  ) : (
+                    <Store className="w-12 h-12 text-gray-200" />
+                  )}
                 </div>
               </div>
-            );
-          })}
+            </Link>
+          ))}
         </div>
       </div>
     </section>

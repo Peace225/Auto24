@@ -4,6 +4,8 @@ import AllPartsGrid from '../components/features/AllPartsGrid';
 import FeaturedProducts from '../components/features/FeaturedProducts';
 import WhyChooseUs from '../components/features/WhyChooseUs';
 import FeaturedStores from '../components/features/FeaturedStores';
+import BoostedProducts from '../components/features/BoostedProducts';
+import PromoPage from '../components/features/PromoPage';
 
 export default function Home() {
   return (
@@ -12,8 +14,15 @@ export default function Home() {
       {/* 🟢 HERO SECTION (Recherche + Banner) */}
       <HeroSection />
 
+      {/* 🟢 PRODUITS BOOST */}
+      <BoostedProducts />
+
       {/* 🟢 PRODUITS À LA UNE */}
       <FeaturedProducts />
+
+      {/* 🟢 PRODUITS PROMO */}
+      <PromoPage />
+      
       <FeaturedStores />
 
       {/* 🟢 GRILLE COMPLÈTE DU CATALOGUE */}

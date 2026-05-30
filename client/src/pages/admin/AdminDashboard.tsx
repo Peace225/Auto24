@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldCheck, Loader2, Users, Package, RefreshCw,
   Database, DollarSign, MessageSquare, AlertCircle
@@ -7,7 +7,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { supabase } from '../../lib/supabase';
 import AdminSidebar from "./AdminSidebar";
 
-// Imports des composants
+// Composants
 import GlobalStockManager from "./components/GlobalStockManager";
 import MyStoreInventory from "./components/MyStoreInventory";
 import SubscriptionManager from "./components/SubscriptionManager";
@@ -20,6 +20,9 @@ import VehicleManager from "./components/VehicleManager";
 import DisputesManager from "./components/DisputesManager";
 import MessagesComponent from "./components/MessagesComponent";
 import OrdersManager from "./components/OrdersManager";
+import CreateStore from "./CreateStore";
+// 👇 NOUVEL IMPORT POUR LES PROMOS 👇
+import AdminPromoManager from "./components/AdminPromoManager"; 
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -29,66 +32,81 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({ products: 0, users: 0, vehicles: 0, dailyRevenue: 0 });
   const [alerts, setAlerts] = useState({ pendingSubs: 0, unreadMsgs: 0, pendingDocs: 0, pendingOrders: 0 });
 
-  const fetchDashboardData = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const [pRes, uRes, vRes, subRes, msgRes, docRes, revRes, orderRes] = await Promise.all([
-        supabase.from('products').select('id', { count: 'exact', head: true }),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('vehicles').select('id', { count: 'exact', head: true }),
-        supabase.from('subscriptions').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('messages').select('id', { count: 'exact', head: true }).eq('is_read', false),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('document_status', 'pending'),
-        supabase.from('transactions').select('amount').eq('status', 'completed').gte('created_at', today),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      ]);
+  useEffect(() => {
+    let isMounted = true;
 
-      const dailyRev = revRes.data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+    const fetchDashboardData = async () => {
+      setIsRefreshing(true);
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const [pRes, uRes, vRes, subRes, msgRes, docRes, revRes, orderRes] = await Promise.all([
+          supabase.from('products').select('id', { count: 'exact', head: true }),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('vehicles').select('id', { count: 'exact', head: true }),
+          supabase.from('subscriptions').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('messages').select('id', { count: 'exact', head: true }).eq('is_read', false),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('document_status', 'pending'),
+          supabase.from('transactions').select('amount').eq('status', 'completed').gte('created_at', today),
+          supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        ]);
 
-      setStats({
-        products: pRes.count || 0,
-        users: uRes.count || 0,
-        vehicles: vRes.count || 0,
-        dailyRevenue: dailyRev
-      });
+        const dailyRev = revRes.data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
-      setAlerts({
-        pendingSubs: subRes.count || 0,
-        unreadMsgs: msgRes.count || 0,
-        pendingDocs: docRes.count || 0,
-        pendingOrders: orderRes.count || 0
-      });
-    } catch (err) {
-      console.error("Erreur Fetch:", err);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
+        if (isMounted) {
+          setStats({
+            products: pRes.count || 0,
+            users: uRes.count || 0,
+            vehicles: vRes.count || 0,
+            dailyRevenue: dailyRev
+          });
+          setAlerts({
+            pendingSubs: subRes.count || 0,
+            unreadMsgs: msgRes.count || 0,
+            pendingDocs: docRes.count || 0,
+            pendingOrders: orderRes.count || 0
+          });
+        }
+      } catch (err) {
+        console.error("Erreur Fetch:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchDashboardData();
+
+    const channel = supabase.channel('admin-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchDashboardData)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchDashboardData)
+    .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  useEffect(() => {
-    fetchDashboardData();
-    const channel = supabase.channel('admin-realtime')
-     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchDashboardData)
-     .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchDashboardData)
-     .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchDashboardData]);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    window.location.reload();
+  };
 
   return (
     <div className="bg-[#05070B] min-h-screen text-slate-200 flex flex-col">
       <header className="h-16 md:h-20 border-b border-white/10 bg-[#080B12]/80 backdrop-blur-xl sticky top-0 z-40 flex items-center justify-between px-4 md:px-10">
         <h1 className="text-lg md:text-xl font-black uppercase text-white">SpaceAuto <span className="text-amber-500">Admin</span></h1>
-        <button onClick={fetchDashboardData} disabled={isRefreshing} className="p-2.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors disabled:opacity-50">
-          <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+        <button onClick={handleRefresh} disabled={isRefreshing} className="p-2.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors disabled:opacity-50">
+          <RefreshCw size={18} className={isRefreshing? 'animate-spin' : ''} />
         </button>
       </header>
 
       <div className="flex flex-1 min-h-0 min-w-0">
         <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
         <main className="flex-1 min-w-0 p-4 md:p-8 lg:p-10 overflow-y-auto pb-24 lg:pb-10">
-          {isLoading ? (
+          {isLoading? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="animate-spin text-amber-500" size={40}/>
             </div>
@@ -102,7 +120,7 @@ export default function AdminDashboard() {
                   </p>
                 </div>
               )}
-              {activeTab === 'overview' ? <OverviewSection key="overview" stats={stats} /> : renderContent(activeTab, setActiveTab)}
+              {activeTab === 'overview'? <OverviewSection stats={stats} /> : renderContent(activeTab, setActiveTab)}
             </div>
           )}
         </main>
@@ -112,7 +130,10 @@ export default function AdminDashboard() {
 }
 
 function OverviewSection({ stats }: any) {
-  const salesData = [{ name: 'Lun', val: 4000 }, { name: 'Mar', val: 3000 }, { name: 'Mer', val: 5000 }, { name: 'Jeu', val: 2780 }, { name: 'Ven', val: 1890 }, { name: 'Sam', val: 3200 }, { name: 'Dim', val: 4100 }];
+  const salesData = [
+    { name: 'Lun', val: 4000 }, { name: 'Mar', val: 3000 }, { name: 'Mer', val: 5000 },
+    { name: 'Jeu', val: 2780 }, { name: 'Ven', val: 1890 }, { name: 'Sam', val: 3200 }, { name: 'Dim', val: 4100 }
+  ];
 
   return (
     <div className="space-y-6 min-w-0">
@@ -125,8 +146,8 @@ function OverviewSection({ stats }: any) {
 
       <div className="bg-[#080B12] p-4 md:p-6 rounded-3xl border border-white/5 min-w-0">
         <h3 className="text-white font-bold mb-4 text-sm">Évolution des Ventes</h3>
-        {/* Correction hauteur fixe ici */}
-        <div className="h-64 w-full">
+        {/* ✅ CORRIGÉ : Hauteur fixée avec h-64 pour que le graphique s'affiche */}
+        <div className="w-full h-64">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={salesData}>
               <defs>
@@ -153,6 +174,7 @@ function KPICard({ title, value, icon: Icon, color }: any) {
   return (
     <div className="bg-[#080B12] p-4 md:p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
       <Icon className={`${colorMap[color]} mb-3`} size={20} />
+      {/* ✅ CORRIGÉ : text-[10px] au lieu du "text-" incomplet */}
       <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">{title}</p>
       <p className="text-lg md:text-xl font-black mt-1 text-white">{value}</p>
     </div>
@@ -161,6 +183,7 @@ function KPICard({ title, value, icon: Icon, color }: any) {
 
 function renderContent(tab: string, setActiveTab: any) {
   switch (tab) {
+    case 'create-store': return <CreateStore setActiveTab={setActiveTab} />;
     case 'my-store': return <MyStoreInventory />;
     case 'products': return <GlobalStockManager />;
     case 'orders': return <OrdersManager />;
@@ -173,6 +196,8 @@ function renderContent(tab: string, setActiveTab: any) {
     case 'disputes': return <DisputesManager />;
     case 'ktype': return <VehicleManager />;
     case 'settings': return <SettingsManager />;
+    // 👇 NOUVELLE LIGNE POUR CONNECTER LE BOUTON À LA PAGE 👇
+    case 'promotions': return <AdminPromoManager />;
     default: return null;
   }
 }

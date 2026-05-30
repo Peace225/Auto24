@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, PackageSearch, CreditCard, Gavel, LogOut,
   PlusCircle, PackagePlus, Settings, Database, UserCheck,
-  Store, MessageSquare, Package, Crown
+  Store, MessageSquare, Package, Crown, Flame
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -38,6 +38,8 @@ const menuStructure = [
     items: [
       { id: 'my-store', icon: Store, label: 'Mon Inventaire' },
       { id: 'products', icon: PackageSearch, label: 'Stock Global' },
+      // 👇 NOUVEL ONGLET POUR GÉRER LES PROMOS
+      { id: 'promotions', icon: Flame, label: 'Promotions' },
       { id: 'ktype', icon: Database, label: 'Véhicules' },
     ]
   },
@@ -96,7 +98,7 @@ export default function AdminSidebar({ activeTab, setActiveTab, userRole = 'supe
   return (
     <>
       {/* Sidebar Desktop */}
-      <aside className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-6 bg-[#0B0F1A] h-screen sticky top-0 overflow-y-auto">
+      <aside className="hidden xl:flex w-64 border-r border-white/5 flex-col py-8 px-4 gap-6 bg-[#0B0F1A] h-screen sticky top-0 overflow-y-auto scrollbar-hide">
         <nav className="flex-1 flex flex-col gap-6">
           {filteredMenu.map((section) => (
             <div key={section.title}>
@@ -113,7 +115,7 @@ export default function AdminSidebar({ activeTab, setActiveTab, userRole = 'supe
                       : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                   }`}
                 >
-                  <item.icon className="w-4 h-4" />
+                  <item.icon className={`w-4 h-4 ${item.id === 'promotions' && activeTab !== item.id ? 'text-red-500/70' : ''}`} />
                   <span className="text-[11px] font-black uppercase tracking-widest">{item.label}</span>
                 </button>
               ))}
