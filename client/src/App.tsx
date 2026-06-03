@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // Layouts
@@ -15,7 +15,6 @@ import Home from './pages/Home';
 import Catalog from './pages/Catalog';
 import ProductDetails from './pages/ProductDetails';
 import CategoryPage from './pages/CategoryPage';
-import SearchPage from './pages/SearchPage';
 import Checkout from './pages/Checkout';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import Batteries from './pages/Batteries';
@@ -31,7 +30,7 @@ import BecomeVendorPage from './pages/vendor/BecomeVendorPage';
 import VendorDashboard from './pages/vendor/VendorDashboard'; 
 import VendorPricing from './pages/vendor/VendorPricing'; 
 import VendorPayment from './pages/vendor/VendorPayment';
-import BoostPage from './pages/vendor/BoostPage'; // <-- AJOUT DE L'IMPORT
+import BoostPage from './pages/vendor/BoostPage';
 
 // Pages Thématiques
 import MotorOil from './pages/MotorOil';
@@ -60,7 +59,6 @@ import AdminTransactions from "./pages/admin/AdminTransactions";
 
 import './App.css';
 
-// Composant pour masquer le bouton WhatsApp sur les interfaces Dashboard et Auth
 function ConditionalWhatsApp() {
   const location = useLocation();
   const hiddenPaths = ['/admin', '/vendor', '/dashboard', '/login', '/register'];
@@ -77,11 +75,14 @@ function App() {
       <CartDrawer />
 
       <Routes>
-        {/* --- 1. ROUTES CLIENTS (Avec Layout public) --- */}
+        {/* --- 1. ROUTES CLIENTS --- */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/search" element={<SearchPage />} />
+          
+          {/* 🟢 RECHERCHE & CATALOGUE UNIFIÉS */}
+          <Route path="/search" element={<Catalog />} />
           <Route path="/catalog" element={<Catalog />} />
+          
           <Route path="/tires" element={<Tires />} />
           <Route path="/accessories" element={<Accessories />} />
           <Route path="/garages" element={<Garages />} />
@@ -99,7 +100,7 @@ function App() {
           <Route path="/store/:id" element={<StoreDetail />} />
         </Route>
 
-        {/* --- 2. ROUTES VENDEURS (Protégées par VendorGuard) --- */}
+        {/* --- 2. ROUTES VENDEURS --- */}
         <Route 
           path="/vendor" 
           element={
@@ -110,22 +111,15 @@ function App() {
         >
           <Route index element={<Navigate to="/vendor/dashboard" replace />} /> 
           <Route path="dashboard" element={<VendorDashboard />} />
-          
-          {/* Section Produits */}
           <Route path="products">
             <Route index element={<VendorProducts />} />
             <Route path="new" element={<AddProduct />} />
             <Route path="edit/:id" element={<EditProduct />} />
           </Route>
-
           <Route path="orders" element={<VendorOrders />} />
           <Route path="messages" element={<VendorMessages />} />
           <Route path="notifications" element={<VendorNotifications />} />
-          
-          {/* LOGIQUE DE BOOST / SPONSORING */}
-          <Route path="boost" element={<BoostPage />} /> {/* <-- AJOUT DE LA ROUTE */}
-
-          {/* Section Paramètres et Paiement */}
+          <Route path="boost" element={<BoostPage />} />
           <Route path="settings">
             <Route index element={<VendorSettings />} />
             <Route path="plans" element={<VendorPricing />} />
@@ -140,14 +134,11 @@ function App() {
            <Route path="transactions" element={<AdminTransactions />} />
         </Route>
 
-        {/* --- 4. PAGES HORS LAYOUT (Login/Register) --- */}
+        {/* --- 4. AUTH & ERREURS --- */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/register-vendor" element={<RegisterVendorPage />} />
-        
-        {/* --- 5. GESTION DES ERREURS 404 --- */}
         <Route path="*" element={<Navigate to="/" replace />} />
-        
       </Routes>
 
       <ConditionalWhatsApp />

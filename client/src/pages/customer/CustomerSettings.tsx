@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { 
   User, MapPin, Phone, Camera, 
-  Loader2, ShieldCheck, Lock, Save, X 
+  Loader2, ShieldCheck, Lock, Save 
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -97,7 +97,7 @@ export default function CustomerSettings() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10">
         
         {/* COLONNE GAUCHE : PHOTO & SÉCURITÉ */}
-        <div className="space-y-6 md:space-y-8">
+        <div className="space-y-6 md:space-y-8 flex flex-col">
           
           {/* Carte Avatar Compacte */}
           <div className="bg-white border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 shadow-sm text-center relative overflow-hidden">
@@ -105,7 +105,7 @@ export default function CustomerSettings() {
             
             <div className="relative z-10 flex flex-col items-center mt-4 md:mt-6">
               <div className="relative mb-4 md:mb-6">
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl md:rounded-[2rem] border-4 border-white shadow-lg overflow-hidden bg-white flex items-center justify-center">
+                <div className="w-24 h-24 md:w-32 md:h-32 shrink-0 rounded-2xl md:rounded-[2rem] border-4 border-white shadow-lg overflow-hidden bg-white flex items-center justify-center">
                   {user?.avatar_url ? (
                     <img src={user.avatar_url} alt="Profil" className="w-full h-full object-cover" />
                   ) : (
@@ -117,7 +117,7 @@ export default function CustomerSettings() {
                   <input type="file" hidden accept="image/*" onChange={handleAvatarUpload} />
                 </label>
                 {uploadingAvatar && (
-                  <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-2xl md:rounded-[2rem] flex items-center justify-center">
+                  <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-2xl md:rounded-[2rem] flex items-center justify-center z-20">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                   </div>
                 )}
@@ -150,13 +150,13 @@ export default function CustomerSettings() {
 
         {/* COLONNE DROITE : FORMULAIRE COMPACT */}
         <div className="lg:col-span-2">
-          <form onSubmit={handleUpdateProfile} className="bg-white border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-5 md:p-12 shadow-sm space-y-6 md:space-y-8">
+          <form onSubmit={handleUpdateProfile} className="bg-white border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-5 md:p-12 shadow-sm space-y-6 md:space-y-8 flex flex-col h-full">
             <div className="mb-2 border-b border-slate-50 pb-4 md:pb-6">
               <h2 className="text-lg md:text-2xl font-[1000] text-slate-900 uppercase italic tracking-tighter">Profil <span className="text-blue-600">Client</span></h2>
               <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Vos coordonnées de livraison</p>
             </div>
 
-            <div className="space-y-4 md:space-y-6">
+            <div className="space-y-4 md:space-y-6 flex-1">
               {/* Champ Nom Complet */}
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -202,7 +202,7 @@ export default function CustomerSettings() {
               </div>
             </div>
 
-            <div className="pt-4 md:pt-8 border-t border-slate-50">
+            <div className="pt-4 md:pt-8 border-t border-slate-50 mt-auto">
               <button 
                 type="submit"
                 disabled={loading}

@@ -39,13 +39,15 @@ const PlanGuard = ({ plan, required, children, label }: {
           <div className="relative mb-3 flex justify-center">
             <div className="absolute inset-0 bg-purple-500/30 blur-2xl opacity-60 animate-pulse" />
             <div className="relative bg-gradient-to-br from-purple-500 to-violet-700 p-2 lg:p-3 rounded-xl lg:rounded-2xl shadow-lg border border-purple-400/20">
-              <Lock className="w-4 h-4 lg:w-5 h-5 text-white" />
+              {/* 🟢 CORRECTION : lg:h-5 ajouté pour éviter la déformation */}
+              <Lock className="w-4 h-4 lg:w-5 lg:h-5 text-white" />
             </div>
           </div>
           <p className="text-[8px] lg:text-[10px] font-black uppercase tracking-[0.2em] text-purple-200/70 mb-3">{label}</p>
           <button 
             onClick={() => navigate('/vendor/settings/plans')}
-            className="px-4 py-1.5 lg:px-5 lg:py-2 bg-purple-500 text-white text-[8px] lg:text-[9px] font-black rounded-full uppercase tracking-widest hover:bg-purple-400 transition-all shadow-lg active:scale-95"
+            // 🟢 CORRECTION : Ajout de whitespace-nowrap pour éviter les retours à la ligne moches sur mobile
+            className="px-3 py-1.5 lg:px-5 lg:py-2 bg-purple-500 text-white text-[8px] lg:text-[9px] font-black rounded-full uppercase tracking-widest hover:bg-purple-400 transition-all shadow-lg active:scale-95 whitespace-nowrap"
           >
               Passer en {required.toUpperCase()}
           </button>
@@ -134,11 +136,11 @@ export default function VendorDashboard() {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
               <div className="flex items-center gap-4 lg:gap-6">
                 <div className={`p-3 lg:p-4 rounded-xl lg:rounded-2xl bg-gradient-to-br ${currentStyle.color} shadow-2xl`}>
-                  <PlanIcon className="w-6 h-6 lg:w-8 h-8 text-white" />
+                  <PlanIcon className="w-6 h-6 lg:w-8 lg:h-8 text-white" />
                 </div>
                 <div>
                   <h1 className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Panel Vendeur</h1>
-                  <h2 className="text-2xl lg:text-4xl font-black text-white tracking-tighter mt-0.5 italic leading-none">
+                  <h2 className="text-xl lg:text-4xl font-black text-white tracking-tighter mt-0.5 italic leading-none truncate max-w-[200px] lg:max-w-none">
                     {profile?.store_name || 'Boutique'}
                   </h2>
                 </div>
@@ -147,7 +149,7 @@ export default function VendorDashboard() {
               <div className="flex gap-2 w-full lg:w-auto">
                 <button 
                   onClick={() => navigate('/vendor/notifications')} 
-                  className="p-3 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-400 rounded-xl transition-all relative"
+                  className="p-3 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-400 rounded-xl transition-all relative shrink-0"
                 >
                   <Bell size={18} />
                   {unreadCount > 0 && (
@@ -156,10 +158,10 @@ export default function VendorDashboard() {
                     </span>
                   )}
                 </button>
-                <button onClick={() => navigate('/vendor/products/new')} className="flex-1 px-4 py-3 bg-white hover:bg-slate-100 text-black rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md">
+                <button onClick={() => navigate('/vendor/products/new')} className="flex-1 px-3 py-3 lg:px-4 bg-white hover:bg-slate-100 text-black rounded-xl font-black text-[9px] lg:text-[10px] uppercase flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md whitespace-nowrap">
                   <Plus size={14} strokeWidth={3} /> Nouveau
                 </button>
-                <button onClick={() => navigate('/vendor/products')} className="flex-1 px-4 py-3 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
+                <button onClick={() => navigate('/vendor/products')} className="flex-1 px-3 py-3 lg:px-4 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white rounded-xl font-black text-[9px] lg:text-[10px] uppercase flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm whitespace-nowrap">
                   <Settings size={14} /> Stock
                 </button>
               </div>
@@ -184,7 +186,7 @@ export default function VendorDashboard() {
           </div>
 
           <div className="bg-gradient-to-br from-purple-600 to-violet-800 p-6 lg:p-8 rounded-[1.5rem] lg:rounded-[2rem] relative overflow-hidden group border border-purple-500/10 shadow-xl">
-            <Sparkles className="absolute -top-4 -right-4 text-white/10 w-20 h-20 lg:w-32 h-32 transform rotate-12 group-hover:scale-110 transition-transform" />
+            <Sparkles className="absolute -top-4 -right-4 text-white/10 w-20 h-20 lg:w-32 lg:h-32 transform rotate-12 group-hover:scale-110 transition-transform" />
             <div className="relative z-10">
               <p className="text-white text-lg lg:text-xl font-black italic uppercase tracking-tighter">Abonnements</p>
               <p className="text-[9px] text-purple-200/80 font-black uppercase tracking-wider mt-1">Pilotez votre visibilité</p>
@@ -196,32 +198,40 @@ export default function VendorDashboard() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md">
-            <ShoppingBag className="w-5 h-5 text-blue-400 mb-4 shadow-[0_0_10px_rgba(59,130,246,0.3)]" />
-            <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Revenus</p>
-            <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">
-              {stats.totalSales.toLocaleString()} <span className="text-[8px] text-slate-500 not-italic">CFA</span>
-            </h3>
+          <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md flex flex-col justify-between">
+            <ShoppingBag className="w-5 h-5 text-blue-400 mb-4 shadow-[0_0_10px_rgba(59,130,246,0.3)] shrink-0" />
+            <div>
+              <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Revenus</p>
+              <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter truncate">
+                {stats.totalSales.toLocaleString()} <span className="text-[8px] text-slate-500 not-italic">CFA</span>
+              </h3>
+            </div>
           </div>
           <PlanGuard plan={plan} required="pro" label="Audience">
-            <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md">
-              <Eye className="w-5 h-5 text-blue-400 mb-4 shadow-[0_0_10px_rgba(59,130,246,0.3)]" />
-              <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Vues</p>
-              <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">{stats.views}</h3>
+            <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md flex flex-col justify-between h-full">
+              <Eye className="w-5 h-5 text-blue-400 mb-4 shadow-[0_0_10px_rgba(59,130,246,0.3)] shrink-0" />
+              <div>
+                <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Vues</p>
+                <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">{stats.views}</h3>
+              </div>
             </div>
           </PlanGuard>
           <PlanGuard plan={plan} required="pro" label="Conversion">
-            <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md">
-              <TrendingUp className="w-5 h-5 text-emerald-400 mb-4 shadow-[0_0_10px_rgba(16,185,129,0.3)]" />
-              <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Conv.</p>
-              <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">{stats.conversionRate}%</h3>
+            <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md flex flex-col justify-between h-full">
+              <TrendingUp className="w-5 h-5 text-emerald-400 mb-4 shadow-[0_0_10px_rgba(16,185,129,0.3)] shrink-0" />
+              <div>
+                <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Conv.</p>
+                <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">{stats.conversionRate}%</h3>
+              </div>
             </div>
           </PlanGuard>
           <PlanGuard plan={plan} required="premium" label="Staff">
-            <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md">
-              <Users className="w-5 h-5 text-purple-400 mb-4 shadow-[0_0_10px_rgba(168,85,247,0.3)]" />
-              <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Staff</p>
-              <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">2/5</h3>
+            <div className="bg-[#080A0F]/70 border border-white/[0.04] p-5 lg:p-7 rounded-[1.5rem] shadow-md flex flex-col justify-between h-full">
+              <Users className="w-5 h-5 text-purple-400 mb-4 shadow-[0_0_10px_rgba(168,85,247,0.3)] shrink-0" />
+              <div>
+                <p className="text-[8px] lg:text-[10px] font-black uppercase text-slate-500 tracking-wider">Staff</p>
+                <h3 className="text-lg lg:text-2xl font-black text-white mt-1 tracking-tighter">2/5</h3>
+              </div>
             </div>
           </PlanGuard>
         </div>
@@ -231,14 +241,15 @@ export default function VendorDashboard() {
               <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-400 mb-6 lg:mb-10">
                 <BarChart3 size={16} className="text-purple-500" /> Performance
               </h3>
-              <div className="h-32 lg:h-48 flex items-end gap-2 lg:gap-3">
-                  {[40, 65, 45, 80, 75, 100, 90, 110].map((v, i) => (
+              {/* 🟢 CORRECTION : gap-1 sur mobile pour s'assurer que les 8 barres rentrent bien */}
+              <div className="h-32 lg:h-48 flex items-end gap-1 md:gap-2 lg:gap-3">
+                 {[40, 65, 45, 80, 75, 100, 90, 110].map((v, i) => (
                     <div 
                       key={i} 
-                      className="flex-1 bg-gradient-to-t from-purple-700 to-purple-500 rounded-t-lg lg:rounded-t-xl animate-in slide-in-from-bottom duration-500 shadow-[0_0_10px_rgba(168,85,247,0.2)]" 
+                      className="flex-1 bg-gradient-to-t from-purple-700 to-purple-500 rounded-t-sm md:rounded-t-lg lg:rounded-t-xl animate-in slide-in-from-bottom duration-500 shadow-[0_0_10px_rgba(168,85,247,0.2)]" 
                       style={{ height: `${(v/110)*100}%` }} 
                     />
-                  ))}
+                 ))}
               </div>
            </section>
         </PlanGuard>

@@ -63,7 +63,7 @@ export default function VendorSidebar() {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
     { icon: ShoppingBag, label: 'Ventes', path: '/vendor/orders' },
     { icon: Package, label: 'Produits', path: '/vendor/products' },
-    // AJOUT : Sponsoring/Boost accessible uniquement si plan PRO ou PREMIUM
+    // Sponsoring/Boost accessible uniquement si plan PRO ou PREMIUM
     ...(plan !== 'standard' ? [{ 
       icon: Star, 
       label: 'Sponsoring', 
@@ -148,8 +148,8 @@ export default function VendorSidebar() {
       {/* --- MOBILE NAVIGATION BAR --- */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#05070B]/95 backdrop-blur-xl border-t border-white/10 px-2 pb-safe z-[1000] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-around h-16 max-w-md mx-auto">
-          {/* On filtre pour ne garder que les 4 premiers essentiels sur mobile afin de laisser la 5ème place à la Déconnexion */}
-          {menuItems.filter(i => i.label !== 'Réglages').slice(0, 4).map((item) => {
+          {/* 🟢 CORRECTION : Sélection explicite des onglets pour éviter que "Messages" ne disparaisse */}
+          {menuItems.filter(i => ['Dashboard', 'Ventes', 'Produits', 'Messages'].includes(i.label)).map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link

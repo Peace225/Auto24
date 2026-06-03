@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Car, Plus, Trash2, X, ShieldCheck, Zap, Loader2, UploadCloud, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
@@ -20,12 +20,27 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
     fuel_type: 'Essence' 
   });
 
+  // 🟢 Nettoyage de la mémoire à la destruction du composant ou fermeture de modale
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (imagePreview) URL.revokeObjectURL(imagePreview); // Libère l'ancienne URL
       setSelectedImage(file);
       setImagePreview(URL.createObjectURL(file)); 
     }
+  };
+
+  const resetForm = () => {
+    setShowAddForm(false);
+    setSelectedImage(null);
+    setImagePreview(null);
+    setFormData({ make: '', model: '', year: new Date().getFullYear(), fuel_type: 'Essence' });
   };
 
   const handleAddVehicle = async (e: React.FormEvent) => {
@@ -39,7 +54,8 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
       let image_url = null;
 
       if (selectedImage) {
-        const fileExt = selectedImage.name.split('.').pop();
+        // 🟢 Sécurisation de l'extension de fichier
+        const fileExt = selectedImage.name.split('.').pop() || 'jpg';
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         const filePath = `vehicles/${fileName}`; 
 
@@ -64,10 +80,7 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
       if (error) throw error;
       
       toast.success("Véhicule ajouté !");
-      setShowAddForm(false);
-      setSelectedImage(null);
-      setImagePreview(null);
-      setFormData({ make: '', model: '', year: new Date().getFullYear(), fuel_type: 'Essence' });
+      resetForm();
       refresh();
       
     } catch (error: any) {
@@ -81,6 +94,8 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
     if (!window.confirm("Retirer ce véhicule du garage ?")) return;
     setIsDeleting(vehicleId);
     try {
+      // 💡 Note : Si tu veux être rigoureux, tu devrais aussi supprimer l'image du Storage Supabase ici
+      // pour éviter de payer pour des fichiers orphelins (ex: supabase.storage.from('vehicle-images').remove([...]))
       const { error } = await supabase.from('user_vehicles').delete().eq('id', vehicleId);
       if (error) throw error;
       toast.success("Véhicule supprimé.");
@@ -152,7 +167,6 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
                 <button 
                   onClick={() => {
                     if(setShopVehicleFilter && setActiveTab) {
-                      // 🟢 ON ENVOIE TOUTES LES INFOS DU VÉHICULE AU CATALOGUE
                       setShopVehicleFilter({ 
                         id: v.id, 
                         make: v.make, 
@@ -180,11 +194,7 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
           <div className="bg-white w-full max-w-md rounded-2xl md:rounded-[3rem] p-5 md:p-8 shadow-2xl relative animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
             
             <button 
-              onClick={() => {
-                setShowAddForm(false);
-                setSelectedImage(null);
-                setImagePreview(null);
-              }} 
+              onClick={resetForm} 
               className="absolute top-3 right-3 md:top-6 md:right-6 text-slate-400 hover:text-slate-900 transition-colors z-10 bg-slate-50 p-1.5 md:p-2 rounded-full"
             >
               <X className="w-4 h-4 md:w-5 md:h-5" />
@@ -221,8 +231,10 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
                 </div>
               </div>
 
+              {/* 🟢 AJOUT DU PARAMÈTRE 'value' SUR TOUS LES CHAMPS POUR LES CONTRÔLER */}
               <select 
                 required
+                value={formData.make}
                 className="w-full px-4 py-3 md:px-6 md:py-4 bg-slate-50 border border-slate-200 rounded-xl text-[9px] md:text-[11px] font-bold uppercase focus:border-blue-600 outline-none transition-all cursor-pointer"
                 onChange={(e) => setFormData({...formData, make: e.target.value})}
               >
@@ -232,6 +244,7 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
 
               <input 
                 type="text" placeholder="MODÈLE (EX: RAV4...)" required
+                value={formData.model}
                 className="w-full px-4 py-3 md:px-6 md:py-4 bg-slate-50 border border-slate-200 rounded-xl text-[9px] md:text-[11px] font-bold uppercase focus:border-blue-600 outline-none transition-all"
                 onChange={(e) => setFormData({...formData, model: e.target.value})}
               />
@@ -239,13 +252,14 @@ export default function GarageManager({ vehicles, refresh, setActiveTab, setShop
               <div className="grid grid-cols-2 gap-2 md:gap-3">
                 <input 
                   type="number" placeholder="ANNÉE" required min="1950" max={new Date().getFullYear() + 1}
+                  value={formData.year}
                   className="w-full px-4 py-3 md:px-6 md:py-4 bg-slate-50 border border-slate-200 rounded-xl text-[9px] md:text-[11px] font-bold uppercase focus:border-blue-600 outline-none transition-all"
                   onChange={(e) => setFormData({...formData, year: parseInt(e.target.value)})}
                 />
                 <select 
+                  value={formData.fuel_type}
                   className="w-full px-4 py-3 md:px-6 md:py-4 bg-slate-50 border border-slate-200 rounded-xl text-[9px] md:text-[11px] font-bold uppercase focus:border-blue-600 outline-none transition-all cursor-pointer"
                   onChange={(e) => setFormData({...formData, fuel_type: e.target.value})}
-                  defaultValue="Essence"
                 >
                   <option value="Essence">Essence</option>
                   <option value="Diesel">Diesel</option>

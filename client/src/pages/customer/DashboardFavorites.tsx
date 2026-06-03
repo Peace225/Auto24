@@ -1,9 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Loader2, HeartCrack, ShoppingCart, Trash2, Tag, ArrowRight, Store, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../../store/useCartStore';
 import { toast } from 'react-hot-toast';
+
+// 🟢 SORTI DU COMPOSANT PRINCIPAL pour éviter les re-rendus inutiles
+const VendorBadge = ({ name, role }: { name: string, role: string }) => {
+  if (role === 'admin' || role === 'super_admin') return (
+    <div className="absolute top-2 right-2 md:top-3 md:right-3 z-20 bg-gradient-to-r from-blue-900 to-slate-900 text-blue-400 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[6px] md:text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-xl border border-blue-500/20 backdrop-blur-md">
+      <CheckCircle2 size={8} className="text-blue-400 md:w-2.5 md:h-2.5" /> OFFICIEL
+    </div>
+  );
+  
+  return (
+    <div className="absolute top-2 right-2 md:top-3 md:right-3 z-20 bg-white/95 backdrop-blur-md text-slate-700 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[6px] md:text-[8px] font-black uppercase tracking-wider border border-slate-200 shadow-sm flex items-center gap-1">
+      <Store size={8} className="text-blue-600 md:w-2.5 md:h-2.5" />
+      <span className="truncate max-w-[40px] md:max-w-[80px]">{name}</span>
+    </div>
+  );
+};
 
 export default function DashboardFavorites() {
   const [favorites, setFavorites] = useState<any[]>([]);
@@ -13,7 +29,8 @@ export default function DashboardFavorites() {
 
   const fallbackImage = "https://placehold.co/400x300/f8fafc/94a3b8?text=Image+Indisponible";
 
-  const fetchFavorites = async (currentUserId: string) => {
+  // 🟢 WRAPPÉ DANS useCallback pour la stabilité des références
+  const fetchFavorites = useCallback(async (currentUserId: string) => {
     try {
       const { data, error } = await supabase
         .from('favorites')
@@ -75,7 +92,7 @@ export default function DashboardFavorites() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let channel: any;
@@ -84,6 +101,7 @@ export default function DashboardFavorites() {
       if (user) {
         setUserId(user.id);
         fetchFavorites(user.id);
+        
         channel = supabase
           .channel('realtime_favorites')
           .on('postgres_changes', {
@@ -103,32 +121,33 @@ export default function DashboardFavorites() {
         setIsLoading(false);
       }
     };
+    
     init();
+    
     return () => { if (channel) supabase.removeChannel(channel); };
-  }, []);
+  }, [fetchFavorites]);
 
   const removeFavorite = async (productId: string) => {
     if (!userId) return;
     setFavorites(prev => prev.filter(p => p.id !== productId));
-    const { error } = await supabase.from('favorites').delete().eq('user_id', userId).eq('product_id', productId);
+    
+    const { error } = await supabase
+      .from('favorites')
+      .delete()
+      .eq('user_id', userId)
+      .eq('product_id', productId);
+      
     if (error) {
       toast.error("Erreur suppression");
       fetchFavorites(userId);
+    } else {
+      toast.success("Retiré des favoris"); // 🟢 Ajout d'un feedback visuel sympa
     }
   };
 
-  const VendorBadge = ({ name, role }: { name: string, role: string }) => {
-    if (role === 'admin' || role === 'super_admin') return (
-      <div className="absolute top-2 right-2 md:top-3 md:right-3 z-20 bg-gradient-to-r from-blue-900 to-slate-900 text-blue-400 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[6px] md:text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-xl border border-blue-500/20 backdrop-blur-md">
-        <CheckCircle2 size={8} className="text-blue-400 md:w-2.5 md:h-2.5" /> OFFICIEL
-      </div>
-    );
-    return (
-      <div className="absolute top-2 right-2 md:top-3 md:right-3 z-20 bg-white/95 backdrop-blur-md text-slate-700 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[6px] md:text-[8px] font-black uppercase tracking-wider border border-slate-200 shadow-sm flex items-center gap-1">
-        <Store size={8} className="text-blue-600 md:w-2.5 md:h-2.5" />
-        <span className="truncate max-w-[40px] md:max-w-[80px]">{name}</span>
-      </div>
-    );
+  const handleAddToCart = (product: any) => {
+    addToCart(product);
+    toast.success("Ajouté au panier !"); // 🟢 Feedback lors de l'ajout
   };
 
   if (isLoading) return (
@@ -154,7 +173,6 @@ export default function DashboardFavorites() {
       {favorites.map((product) => (
         <div key={product.id} className="bg-white rounded-xl md:rounded-[1.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col group h-full">
           
-          {/* 🟢 ZONE IMAGE (Réduite sur mobile) */}
           <div className="relative h-28 md:h-48 bg-slate-50 flex items-center justify-center p-3 md:p-6 overflow-hidden">
             <VendorBadge name={product.vendor_name} role={product.vendor_role} />
             <img 
@@ -164,7 +182,6 @@ export default function DashboardFavorites() {
             />
           </div>
 
-          {/* 🟢 ZONE CONTENU (Paddings réduits sur mobile) */}
           <div className="p-2.5 md:p-5 flex flex-col flex-1">
             <div className="flex items-center gap-1.5 mb-1.5 md:mb-2">
               <span className="text-[6px] md:text-[8px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-1.5 md:px-2 py-0.5 rounded md:rounded-md border border-blue-100 flex items-center gap-1 truncate max-w-[80px] md:max-w-none">
@@ -192,7 +209,6 @@ export default function DashboardFavorites() {
                 </span>
               </div>
               
-              {/* 🟢 BOUTONS D'ACTION (Plus compacts sur mobile) */}
               <div className="flex gap-1 md:gap-2 w-full lg:w-auto">
                 <button 
                   onClick={() => removeFavorite(product.id)} 
@@ -202,7 +218,7 @@ export default function DashboardFavorites() {
                   <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
                 </button>
                 <button 
-                  onClick={() => addToCart(product)} 
+                  onClick={() => handleAddToCart(product)} 
                   className="flex-1 lg:flex-none flex items-center justify-center p-1.5 md:p-2.5 bg-slate-900 text-white rounded-lg md:rounded-xl hover:bg-blue-600 transition-all duration-300 shadow-lg active:scale-95"
                   title="Ajouter au panier"
                 >
