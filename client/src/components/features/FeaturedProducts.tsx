@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowRight, Loader2, Heart, ShoppingCart, Star, Store, Crown, Award, Zap, Truck, ShieldCheck, RotateCcw, BadgeCheck, Headphones, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, Loader2, Heart, ShoppingCart, Star, Store, Crown, Award, Zap, Truck, ShieldCheck, RotateCcw, BadgeCheck, Headphones, ChevronDown, ChevronUp, PackageCheck, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -21,9 +21,8 @@ export default function FeaturedProducts() {
   // 🟢 FILTRES AUTO ET PAGINATION
   const [planFilter, setPlanFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('all');
-  const [visibleCount, setVisibleCount] = useState(15); // Affiche 15 produits au départ
+  const [visibleCount, setVisibleCount] = useState(15);
 
-  // Remet le compteur à 15 quand on change un filtre
   useEffect(() => {
     setVisibleCount(15);
   }, [planFilter, brandFilter]);
@@ -61,7 +60,6 @@ export default function FeaturedProducts() {
           reviews (rating)
         `)
         .eq('status', 'approved')
-        .gt('stock', 0)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -92,6 +90,10 @@ export default function FeaturedProducts() {
 
         img = img.replace(/^["']|["']$/g, '');
 
+        // Sécurisation de la compatibilité et récupération des fallbacks (ex: oem_reference vs reference)
+        let compat = item.compatibility || '';
+        if (Array.isArray(item.compatibility)) compat = item.compatibility.join(', ');
+        
         return {
           ...item,
           final_price: getPublicPrice(item.price || 0),
@@ -100,10 +102,18 @@ export default function FeaturedProducts() {
           vendor_status: isAdmin ? 'approved' : (item.vendor?.status || 'standard'),
           vendor_plan: activePlan.toLowerCase(),
           avgRating: avg,
-          reviewsCount: item.reviews?.length || 0
+          reviewsCount: item.reviews?.length || 0,
+          compatibility_text: compat,
+          // Consolidation des champs pour l'affichage
+          safe_reference: item.reference || item.oem_reference || 'N/A',
+          safe_model: item.model || item.vehicle_model || 'Générique',
+          safe_stock: item.stock !== undefined ? item.stock : (item.stock_quantity || 0),
+          safe_condition: item.condition || 'Neuf',
+          safe_year: item.year || ''
         };
       });
 
+      // On filtre les produits en rupture de stock si tu le souhaites (ici on les garde mais on l'affiche)
       setProducts(formatted);
     } catch (e) {
       console.error(e);
@@ -226,6 +236,9 @@ export default function FeaturedProducts() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {displayedProducts.map(p => {
                   const plan = p.vendor_plan;
+                  const isOutOfStock = p.safe_stock <= 0;
+                  const isConditionNeuf = p.safe_condition?.toLowerCase().includes('neuf');
+
                   return (
                     <div key={p.id} className="group relative bg-white rounded-2xl border border-slate-100 hover:shadow-xl hover:border-orange-200 transition-all duration-300 flex flex-col">
                       <div className="absolute top-2 left-2 z-20">
@@ -239,7 +252,7 @@ export default function FeaturedProducts() {
                       </button>
 
                       <Link to={`/product/${p.id}`} className="relative block aspect-square p-4 bg-gradient-to-b from-slate-50 to-white">
-                        <img src={p.image} className="w-full h-full object-contain mix-blend-darken group-hover:scale-105 transition-transform duration-300" alt={p.name} />
+                        <img src={p.image} className={`w-full h-full object-contain mix-blend-darken transition-transform duration-300 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-105'}`} alt={p.name} />
                         <div className="absolute bottom-2 right-2">
                           <VendorBadge isVerified={p.vendor_status === 'approved'} planType={plan} type={p.vendor?.role === 'garage' ? 'garage' : 'vendor'} />
                         </div>
@@ -251,11 +264,36 @@ export default function FeaturedProducts() {
                           {p.vendor_name}
                         </div>
 
-                        <h3 className="text-xs font-semibold text-slate-900 line-clamp-2 min-h-[2.4em] leading-snug">{p.name}</h3>
+                        <h3 className="text-xs font-semibold text-slate-900 line-clamp-2 min-h-[2.4em] leading-snug" title={p.name}>{p.name}</h3>
 
-                        <div className="flex items-center gap-2 text-[9px] text-slate-500 mt-1">
-                          <span>{p.brand || '—'}</span>•<span>{p.model || '—'}</span>•<span>Réf: {p.reference || '—'}</span>
+                        {/* --- NOUVEAU : ÉTAT & STOCK --- */}
+                        <div className="flex items-center justify-between mt-2">
+                          <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${isConditionNeuf ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {p.safe_condition}
+                          </span>
+                          <span className={`text-[8px] font-black uppercase flex items-center gap-0.5 ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
+                            {isOutOfStock ? <AlertCircle size={10} /> : <PackageCheck size={10} />}
+                            {isOutOfStock ? 'Rupture' : `${p.safe_stock} Dispo`}
+                          </span>
                         </div>
+
+                        {/* --- NOUVEAU : MARQUE, MODÈLE, ANNÉE, RÉFÉRENCE --- */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-slate-500 mt-2 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                          <span className="font-bold text-slate-700 truncate max-w-[60px]" title={p.brand}>{p.brand || '—'}</span>
+                          <span>•</span>
+                          <span className="truncate max-w-[70px]" title={`${p.safe_model} ${p.safe_year}`}>
+                            {p.safe_model} {p.safe_year ? `(${p.safe_year})` : ''}
+                          </span>
+                          <span>•</span>
+                          <span className="truncate max-w-[70px]" title={p.safe_reference}>Réf: {p.safe_reference}</span>
+                        </div>
+
+                        {/* --- COMPATIBILITÉ --- */}
+                        {p.compatibility_text && (
+                          <div className="mt-2 text-[9px] text-slate-600 line-clamp-1 border-t border-slate-100 pt-1.5" title={p.compatibility_text}>
+                            <span className="font-bold text-slate-800">Comp. :</span> {p.compatibility_text}
+                          </div>
+                        )}
 
                         <div className="mt-3 mb-3">
                           <div className="flex items-baseline gap-1">
@@ -272,10 +310,15 @@ export default function FeaturedProducts() {
 
                         <div className="mt-auto">
                           <button
+                            disabled={isOutOfStock}
                             onClick={(e) => { e.preventDefault(); addToCart({...p, price: p.final_price }); toast.success('Ajouté au panier'); }}
-                            className="w-full h-9 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                            className={`w-full h-9 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${
+                              isOutOfStock 
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                              : 'bg-[#2563EB] hover:bg-blue-700 text-white active:scale-95'
+                            }`}
                           >
-                            <ShoppingCart size={15}/> Ajouter
+                            <ShoppingCart size={15}/> {isOutOfStock ? 'Indisponible' : 'Ajouter'}
                           </button>
                         </div>
                       </div>
@@ -299,7 +342,6 @@ export default function FeaturedProducts() {
                     <button 
                       onClick={() => {
                         setVisibleCount(15);
-                        // Fait remonter légèrement la vue pour retourner en haut de la liste
                         document.getElementById('featured-products-section')?.scrollIntoView({ behavior: 'smooth' });
                       }}
                       className="flex items-center gap-2 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl transition-all"
