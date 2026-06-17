@@ -68,9 +68,9 @@ export default function SubHeaderSearch() {
         {/* 🟢 BOUTON VENDRE UNE PIÈCE (Placé dans la SubHeaderSearch - Masqué sur PC avec md:hidden) */}
         <Link 
           to="/become-vendor" 
-          className="md:hidden flex items-center justify-center gap-2 w-full bg-blue-50/10 hover:bg-blue-50/20 border border-blue-400/30 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+          className="md:hidden flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-400 border border-orange-500 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
         >
-          <PackagePlus size={14} className="text-blue-300" />
+          <PackagePlus size={14} className="text-orange-100" />
           Vendre une pièce
         </Link>
 
