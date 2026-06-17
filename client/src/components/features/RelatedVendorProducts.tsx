@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-// 🟢 Ajout des icônes Hash et Car
-import { ChevronLeft, ChevronRight, Store, Crown, Loader2, Hash, Car } from 'lucide-react';
+import { 
+  ChevronLeft, ChevronRight, Store, Crown, Loader2, 
+  Hash, Car, Calendar, Wrench, PackageCheck, AlertCircle 
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getPublicPrice } from '../../utils/pricing';
 
@@ -117,11 +119,11 @@ export default function RelatedVendorProducts({ vendorId, currentProductId, cate
   if (products.length === 0) return null;
 
   return (
-    <div className="mt-8 lg:mt-12 border-t border-slate-200 pt-6 lg:pt-8">
-      <div className="flex items-center justify-between mb-4">
+    <div className="mt-8 lg:mt-12 border-t border-slate-200 pt-6 lg:pt-8 font-sans">
+      <div className="flex items-center justify-between mb-4 px-1">
         <div>
-          <h3 className="text-sm md:text-base font-black text-slate-900 uppercase tracking-tight">{sectionTitle}</h3>
-          <p className="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Sélection SpaceAuto24 & Partenaires</p>
+          <h3 className="text-base md:text-lg font-black text-slate-900 uppercase tracking-tight">{sectionTitle}</h3>
+          <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">Sélection SpaceAuto24</p>
         </div>
         {products.length > 1 && (
           <div className="hidden md:flex gap-2">
@@ -135,28 +137,44 @@ export default function RelatedVendorProducts({ vendorId, currentProductId, cate
         )}
       </div>
 
+      {/* Le conteneur scrollable : optimisation mobile (snap-mandatory, scrollbar cachée) */}
       <div
         ref={scrollRef}
-        className="flex gap-3 md:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 pt-1"
+        className="flex gap-3 md:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 pt-1 px-1"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {products.map((item) => {
+          // LOGIQUE DES PROFILS
           const profileInfo = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
           const role = profileInfo?.role || 'admin';
           const isOfficial = role === 'admin' || role === 'super_admin' || !item.vendor_id;
           const storeName = isOfficial ? 'OFFICIEL' : (profileInfo?.store_name?.slice(0, 10) || 'PARTENAIRE');
           
+          // LOGIQUE DES PRIX
           const basePrice = item.price || 0;
           const finalPrice = item.final_price || getPublicPrice(basePrice);
+
+          // LOGIQUE DES DONNÉES TECHNIQUES
+          const safe_reference = item.reference || item.oem_reference || '';
+          const safe_model = item.model || item.vehicle_model || '';
+          const safe_year = item.year || '';
+          const safe_stock = item.stock !== undefined ? item.stock : (item.stock_quantity || 0);
+          const safe_condition = item.condition || 'Neuf';
+          
+          const isOutOfStock = safe_stock <= 0;
+          const isConditionNeuf = safe_condition.toLowerCase().includes('neuf');
+          const compatibility_text = Array.isArray(item.compatibility) ? item.compatibility.join(', ') : (item.compatibility || '');
 
           return (
             <Link
               key={item.id}
               to={`/product/${item.id}`}
               onClick={() => window.scrollTo(0, 0)}
-              className="min-w-[155px] md:min-w-[210px] max-w-[155px] md:max-w-[210px] h-auto bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 snap-start group flex flex-col overflow-hidden relative shrink-0"
+              // Dimensions ultra-réfléchies pour le mobile : 160px de large
+              className="min-w-[160px] md:min-w-[220px] max-w-[160px] md:max-w-[220px] h-auto bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 snap-start group flex flex-col overflow-hidden relative shrink-0"
             >
-              <div className="h-[110px] md:h-[130px] bg-slate-50 relative p-3 flex items-center justify-center border-b border-slate-100 shrink-0">
+              {/* IMAGE */}
+              <div className="h-[120px] md:h-[140px] bg-slate-50 relative p-3 flex items-center justify-center border-b border-slate-100 shrink-0">
                 <img src={item.image_url || fallbackImage} alt={item.name} className="max-h-full w-full object-contain mix-blend-darken group-hover:scale-110 transition-transform duration-500" />
                 
                 <div className={`absolute top-2 left-2 backdrop-blur-md text-white px-2 py-0.5 rounded shadow-md flex items-center gap-1 border ${isOfficial ? 'bg-blue-900/90 border-blue-500/50' : 'bg-slate-900/90 border-white/10'}`}>
@@ -165,45 +183,63 @@ export default function RelatedVendorProducts({ vendorId, currentProductId, cate
                 </div>
               </div>
 
-              <div className="p-3 flex flex-col flex-1 bg-white">
-                {/* 🟢 MARQUE (Badge miniature) */}
-                {item.brand && (
-                  <span className="text-[7px] font-black text-blue-600 uppercase mb-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded border border-blue-100">
-                    {item.brand}
+              {/* CONTENU */}
+              <div className="p-2.5 md:p-3 flex flex-col flex-1 bg-white">
+                
+                {/* BADGES : ÉTAT & STOCK */}
+                <div className="flex flex-wrap gap-1 mb-2">
+                  <span className={`text-[7px] md:text-[8px] font-black uppercase px-1.5 py-0.5 rounded border flex items-center gap-0.5 ${isConditionNeuf ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                    {safe_condition}
                   </span>
-                )}
+                  <span className={`text-[7px] md:text-[8px] font-black uppercase px-1.5 py-0.5 rounded border flex items-center gap-0.5 ${isOutOfStock ? 'bg-red-50 text-red-500 border-red-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                    {isOutOfStock ? <AlertCircle size={8}/> : <PackageCheck size={8}/>}
+                    {isOutOfStock ? 'Rupture' : `${safe_stock} Stock`}
+                  </span>
+                </div>
 
-                <p className="text-[10px] md:text-[11px] font-bold text-slate-900 uppercase line-clamp-2 leading-tight mb-2 group-hover:text-blue-600 transition-colors">
+                {/* TITRE PRODUIT */}
+                <p className="text-[11px] md:text-[12px] font-black text-slate-900 uppercase line-clamp-2 leading-tight mb-2 group-hover:text-blue-600 transition-colors">
                   {item.name}
                 </p>
 
-                {/* 🟢 MODÈLE & RÉFÉRENCE (Petite ligne technique) */}
-                <div className="flex flex-col gap-0.5 mb-3">
-                  {item.model && (
-                    <div className="flex items-center gap-1 text-[7px] md:text-[8px] text-slate-500 font-bold uppercase">
-                      <Car size={8} className="text-slate-300" /> {item.model}
+                {/* MINI-GRILLE DES CARACTÉRISTIQUES TECHNIQUES */}
+                <div className="flex flex-col gap-1 mb-3 mt-auto bg-slate-50 p-1.5 md:p-2 rounded-lg border border-slate-100">
+                  {safe_model && (
+                    <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] text-slate-600 font-medium truncate">
+                      <Car size={10} className="text-blue-500 shrink-0" /> 
+                      <span className="truncate font-bold uppercase">{safe_model}</span>
                     </div>
                   )}
-                  {item.reference && (
-                    <div className="flex items-center gap-1 text-[7px] md:text-[8px] text-slate-500 font-bold uppercase">
-                      <Hash size={8} className="text-slate-300" /> {item.reference}
+                  {safe_year && (
+                    <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] text-slate-600 font-medium truncate">
+                      <Calendar size={10} className="text-emerald-500 shrink-0" /> 
+                      <span className="truncate font-bold">{safe_year}</span>
+                    </div>
+                  )}
+                  {safe_reference && (
+                    <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] text-slate-600 font-medium truncate">
+                      <Hash size={10} className="text-amber-500 shrink-0" /> 
+                      <span className="truncate font-bold uppercase">{safe_reference}</span>
+                    </div>
+                  )}
+                  {compatibility_text && (
+                    <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] text-slate-600 font-medium truncate">
+                      <Wrench size={10} className="text-slate-400 shrink-0" /> 
+                      <span className="truncate">{compatibility_text}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="mt-auto pt-2 border-t border-slate-50">
-                  {basePrice !== finalPrice && (
-                    <span className="text-[7px] text-slate-300 line-through font-bold">
-                      {basePrice.toLocaleString('fr-FR')}
-                    </span>
-                  )}
+                {/* PRIX */}
+                <div className="mt-auto pt-2 border-t border-slate-100 flex flex-col">
                   <div className="flex items-baseline gap-1 leading-none">
-                    <span className="text-xs md:text-sm font-black text-slate-900 tracking-tight italic">
+                    <span className="text-sm md:text-base font-black text-blue-600 tracking-tight">
                       {finalPrice.toLocaleString('fr-FR')}
                     </span>
-                    <span className="text-[7px] font-black text-blue-600 uppercase">CFA</span>
+                    <span className="text-[8px] font-black text-slate-400 uppercase">FCFA</span>
                   </div>
                 </div>
+                
               </div>
             </Link>
           );

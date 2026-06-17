@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, PackageOpen, ArrowRight, Hash, Car, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Loader2, ChevronRight, PackagePlus } from 'lucide-react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -45,26 +45,38 @@ export default function SubHeaderSearch() {
 
   return (
     <div className="w-full bg-[#1e3a8a] border-b border-blue-800 sticky top-0 z-[9998] shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 py-3">
-        <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-300 w-5 h-5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="RECHERCHER UNE PIÈCE..."
-              className="w-full bg-[#172554] border border-blue-700 rounded-full py-3 pl-12 pr-4 text-xs font-bold text-white placeholder-blue-300 outline-none focus:border-blue-400"
-            />
-          </div>
-          <button type="submit" className="bg-orange-500 text-white px-6 py-3 rounded-full text-xs font-black uppercase hover:bg-orange-600 transition-all">
-            GO
+      <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-3">
+        
+        {/* FORMULAIRE DE RECHERCHE - Design "Amazon Style" */}
+        <form onSubmit={handleSubmit} className="relative flex w-full">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Rechercher sur SpaceAuto24..."
+            className="w-full bg-white border-2 border-transparent rounded-l-xl py-3 pl-4 pr-2 text-sm font-medium text-slate-900 placeholder-slate-400 outline-none focus:border-orange-400 transition-colors"
+          />
+          <button 
+            type="submit" 
+            className="bg-[#f3a847] hover:bg-orange-500 text-slate-900 px-5 flex items-center justify-center rounded-r-xl transition-colors border-2 border-transparent focus:border-orange-500"
+            aria-label="Rechercher"
+          >
+            <Search className="w-6 h-6 stroke-[2.5]" />
           </button>
         </form>
 
-        {/* DROPDOWN - Tous les liens pointent vers CATALOGUE */}
+        {/* 🟢 BOUTON VENDRE UNE PIÈCE (Placé dans la SubHeaderSearch - Masqué sur PC avec md:hidden) */}
+        <Link 
+          to="/become-vendor" 
+          className="md:hidden flex items-center justify-center gap-2 w-full bg-blue-50/10 hover:bg-blue-50/20 border border-blue-400/30 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+        >
+          <PackagePlus size={14} className="text-blue-300" />
+          Vendre une pièce
+        </Link>
+
+        {/* DROPDOWN RÉSULTATS DE RECHERCHE */}
         {showDropdown && (
-          <div className="absolute left-4 right-4 md:left-[10%] md:right-[10%] top-[calc(100%+8px)] bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden z-[9999]">
+          <div className="absolute left-4 right-4 md:left-[10%] md:right-[10%] top-[calc(100%+8px)] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[9999]">
             {isSearching ? (
               <div className="p-8 text-center flex justify-center text-slate-400"><Loader2 className="animate-spin" /></div>
             ) : results.length > 0 ? (
@@ -74,19 +86,19 @@ export default function SubHeaderSearch() {
                     key={product.id} 
                     to={`/catalog?searchTerm=${encodeURIComponent(product.name)}`} 
                     onClick={() => setShowDropdown(false)} 
-                    className="flex items-center gap-4 p-4 hover:bg-blue-50 border-b last:border-none"
+                    className="flex items-center gap-4 p-4 hover:bg-blue-50 border-b border-slate-50 last:border-none transition-colors"
                   >
-                    <img src={product.image_url} className="w-12 h-12 object-contain" />
+                    <img src={product.image_url} alt={product.name} className="w-12 h-12 object-contain rounded-lg bg-slate-50 p-1" />
                     <div className="flex-1">
-                      <p className="text-xs font-black uppercase">{product.name}</p>
-                      <p className="text-[10px] text-slate-500">{product.brand}</p>
+                      <p className="text-xs font-black uppercase text-slate-800 line-clamp-1">{product.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{product.brand || 'Pièce'}</p>
                     </div>
                     <ChevronRight size={16} className="text-slate-300" />
                   </Link>
                 ))}
                 <button 
                   onClick={handleSubmit} 
-                  className="p-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest text-center"
+                  className="p-4 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest text-center transition-colors"
                 >
                   Voir tous les résultats
                 </button>
