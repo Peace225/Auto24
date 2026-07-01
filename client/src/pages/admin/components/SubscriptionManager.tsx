@@ -21,9 +21,9 @@ const PLANS = [
     icon: Star,
     popular: true,
     color: 'from-amber-500 to-orange-600',
-    features: ['Jusqu\'à 50 produits', 'Vues uniques & Taux de conv.', 'Badge Pro vérifié', 'Support prioritaire', 'Boost visibilité'],
-    limit: '50 produits',
-    maxProducts: 50
+    features: ['Jusqu\'à 100 produits', 'Vues uniques & Taux de conv.', 'Badge Pro vérifié', 'Support prioritaire', 'Boost visibilité'],
+    limit: '100 produits', // 🟢 Corrigé ici
+    maxProducts: 100       // 🟢 Corrigé ici
   },
   {
     name: 'Premium',
@@ -65,15 +65,25 @@ export default function SubscriptionManager() {
       setRequests(reqRes.data || []);
       setBoosts(boostsRes.data || []);
 
-      const vendorsWithCount = await Promise.all(
-        (vendorsRes.data || []).map(async (v) => {
-          const { count } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('vendor_id', v.id);
-          const activeSub = v.subscriptions?.find((s: any) => s.status === 'active');
-          const realPlan = activeSub?.package_name || v.subscription_plan || 'standard';
-          
-          return { ...v, productCount: count || 0, subscription_plan: realPlan };
-        })
-      );
+    const vendorsWithCount = await Promise.all(
+  (vendorsRes.data || []).map(async (v) => {
+    const { count } = await supabase
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('vendor_id', v.id);
+
+    // 🟢 SÉCURISATION : force v.subscriptions en tableau
+    const subs = Array.isArray(v.subscriptions) 
+      ? v.subscriptions 
+      : (v.subscriptions ? [v.subscriptions] : []);
+    
+    const activeSub = subs.find((s: any) => s.status === 'active');
+    const realPlan = activeSub?.package_name || v.subscription_plan || 'standard';
+    
+    return { ...v, productCount: count || 0, subscription_plan: realPlan };
+  })
+);
+setVendors(vendorsWithCount);
       setVendors(vendorsWithCount);
     } catch (e) {
       console.error(e);

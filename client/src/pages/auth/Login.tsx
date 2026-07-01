@@ -107,42 +107,78 @@ export default function Login() {
             </h2>
           </div>
 
+          {errorMsg && (
+            <div className="mb-4 p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center gap-2 border border-red-100">
+              <AlertCircle size={16} />
+              {errorMsg}
+            </div>
+          )}
+
           {!isForgotPassword && (
             <div className="flex bg-slate-200/50 p-1.5 rounded-2xl mb-6 border border-slate-200">
-              <button onClick={() => setUserRole('buyer')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase ${userRole === 'buyer' ? 'bg-white text-blue-600 shadow-lg' : 'text-slate-500'}`}>
+              <button type="button" onClick={() => setUserRole('buyer')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase transition-all ${userRole === 'buyer' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 <ShoppingBag size={14} /> Client
               </button>
-              <button onClick={() => setUserRole('seller')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase ${userRole === 'seller' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-500'}`}>
+              <button type="button" onClick={() => setUserRole('seller')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase transition-all ${userRole === 'seller' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Store size={14} /> Vendeur
               </button>
             </div>
           )}
 
           <div className="flex gap-4 border-b border-slate-200 mb-6">
-            <button onClick={() => handleMethodChange('phone')} className={`pb-3 text-xs font-black uppercase ${loginMethod === 'phone' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-400'}`}>Par Téléphone</button>
-            <button onClick={() => handleMethodChange('email')} className={`pb-3 text-xs font-black uppercase ${loginMethod === 'email' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-400'}`}>Par Email</button>
+            <button type="button" onClick={() => handleMethodChange('phone')} className={`pb-3 text-xs font-black uppercase transition-colors ${loginMethod === 'phone' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Par Téléphone</button>
+            <button type="button" onClick={() => handleMethodChange('email')} className={`pb-3 text-xs font-black uppercase transition-colors ${loginMethod === 'email' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Par Email</button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="relative">
               {loginMethod === 'phone' ? <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" /> : <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />}
-              <input type={loginMethod === 'phone' ? 'tel' : 'email'} required placeholder={loginMethod === 'phone' ? "07 00 00 00 00" : "exemple@email.com"} value={identifier} onChange={e => setIdentifier(e.target.value)} className="w-full pl-12 py-4 bg-white border border-slate-100 rounded-2xl text-sm font-bold shadow-sm" />
+              <input type={loginMethod === 'phone' ? 'tel' : 'email'} required placeholder={loginMethod === 'phone' ? "07 00 00 00 00" : "exemple@email.com"} value={identifier} onChange={e => setIdentifier(e.target.value)} className="w-full pl-12 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold shadow-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
             </div>
 
             {!isForgotPassword && (
-              <div className="relative">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <input type={showPassword ? "text" : "password"} required placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-12 pr-14 py-4 bg-white border border-slate-100 rounded-2xl text-sm font-bold" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300">
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+              <div>
+                <div className="relative">
+                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <input type={showPassword ? "text" : "password"} required placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-12 pr-14 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold shadow-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                
+                {/* Lien Mot de passe oublié */}
+                <div className="flex justify-end mt-2">
+                  <button type="button" onClick={() => setIsForgotPassword(true)} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">
+                    Mot de passe oublié ?
+                  </button>
+                </div>
               </div>
             )}
 
-            <button type="submit" disabled={isLoading} className="w-full py-5 rounded-2xl font-black text-xs uppercase text-white bg-blue-600 shadow-xl flex items-center justify-center gap-3">
+            <button type="submit" disabled={isLoading} className="w-full py-4 rounded-2xl font-black text-xs uppercase text-white bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed">
               {isLoading ? <Loader2 className="animate-spin" /> : <span>{isForgotPassword ? "Réinitialiser" : "Se Connecter"}</span>}
             </button>
+            
+            {/* Bouton d'annulation si on est sur "Mot de passe oublié" */}
+            {isForgotPassword && (
+              <button type="button" onClick={() => setIsForgotPassword(false)} className="w-full py-4 rounded-2xl font-black text-xs uppercase text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
+                Retour à la connexion
+              </button>
+            )}
           </form>
+
+          {/* Lien d'inscription (Visible uniquement sur l'écran de connexion) */}
+          {!isForgotPassword && (
+            <div className="mt-8 text-center">
+              <p className="text-sm font-bold text-slate-500">
+                Vous n'avez pas de compte ?{' '}
+                <Link to="/register" className="text-blue-600 hover:text-blue-700 hover:underline uppercase text-xs font-black ml-1 transition-colors">
+                  S'inscrire
+                </Link>
+              </p>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
