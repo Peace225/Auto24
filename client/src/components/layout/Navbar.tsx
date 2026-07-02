@@ -67,8 +67,14 @@ export default function Navbar() {
             >
               {isMobileMenuOpen ? <X className="h-6 w-6 animate-in spin-in-90 duration-300" /> : <Menu className="h-6 w-6 animate-in spin-in-[-90deg] duration-300" />}
             </button>
-            <Link to="/" className="font-[1000] text-xl sm:text-3xl text-blue-700 tracking-tighter uppercase italic">
-              SpaceAuto<span className="text-orange-500">24</span>
+            
+            <Link to="/" className="flex items-center gap-2">
+              {/* 🟢 AJOUT DU LOGO ICI */}
+              <img src="/logo.jpg" alt="SpaceAuto24 Logo" className="h-15 w-auto sm:h-15" />
+              
+              <span className="font-[1000] text-xl sm:text-3xl text-blue-700 tracking-tighter uppercase italic">
+                SpaceAuto<span className="text-orange-500">24</span>
+              </span>
             </Link>
           </div>
 

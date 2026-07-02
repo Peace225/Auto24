@@ -86,10 +86,17 @@ export default function AdminPromoManager() {
         // Calcul du nouveau prix promo arrondi
         const newPromoPrice = Math.round(normalPrice * (1 - (discount / 100)));
         
-        return supabase.from('products').update({ promo_price: newPromoPrice }).eq('id', id).then(({error}) => {
-          if(!error) return { id, newPromoPrice };
-          throw error;
-        });
+        return supabase
+          .from('products')
+          .update({ promo_price: newPromoPrice })
+          .eq('id', id)
+          .select() // 🟢 AJOUT : Demande à Supabase de renvoyer la ligne
+          .then(({ data, error }) => {
+            if (error) throw error;
+            // 🟢 VÉRIFICATION RLS
+            if (!data || data.length === 0) throw new Error(`Modification bloquée (RLS) pour le produit ${id}`);
+            return { id, newPromoPrice };
+          });
       });
 
       const results = await Promise.all(updates);
@@ -110,21 +117,27 @@ export default function AdminPromoManager() {
       setBulkDiscountPercent('');
       toast.success(`Réduction de ${discount}% appliquée sur ${results.length} produits !`);
       
-    } catch (error) {
-      toast.error("Une erreur est survenue lors de l'application de masse.");
+    } catch (error: any) {
+      toast.error(error.message || "Une erreur est survenue lors de l'application de masse.");
     } finally {
       setIsProcessingBulk(false);
     }
   };
-
   const handleBulkRemovePromo = async () => {
     setIsProcessingBulk(true);
     try {
       const updates = selectedIds.map(id => 
-        supabase.from('products').update({ promo_price: null }).eq('id', id).then(({error}) => {
-          if(!error) return id;
-          throw error;
-        })
+        supabase
+          .from('products')
+          .update({ promo_price: null })
+          .eq('id', id)
+          .select() // 🟢 AJOUT ICI AUSSI
+          .then(({ data, error }) => {
+            if (error) throw error;
+            // 🟢 VÉRIFICATION RLS
+            if (!data || data.length === 0) throw new Error(`Modification bloquée (RLS) pour le produit ${id}`);
+            return id;
+          })
       );
 
       const results = await Promise.all(updates);
@@ -143,8 +156,8 @@ export default function AdminPromoManager() {
       setSelectedIds([]);
       toast.success(`Promotions retirées pour ${results.length} produits.`);
 
-    } catch (error) {
-      toast.error("Erreur lors de la suppression des promotions.");
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors de la suppression des promotions.");
     } finally {
       setIsProcessingBulk(false);
     }
@@ -162,17 +175,24 @@ export default function AdminPromoManager() {
 
     setUpdatingId(productId);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('products')
         .update({ promo_price: newPromoPrice })
-        .eq('id', productId);
+        .eq('id', productId)
+        .select(); // 🟢 IMPORTANT : Demande à Supabase de renvoyer la ligne modifiée
 
       if (error) throw error;
+      
+      // 🟢 Vérification que la base a bien accepté la modification
+      if (!data || data.length === 0) {
+        throw new Error("Action bloquée par la base de données (Erreur de droits RLS).");
+      }
+
       toast.success(newPromoPrice ? "Promotion appliquée !" : "Promotion retirée !");
       
       setProducts(products.map(p => p.id === productId ? { ...p, promo_price: newPromoPrice } : p));
     } catch (error: any) {
-      toast.error("Erreur lors de la mise à jour");
+      toast.error(error.message || "Erreur lors de la mise à jour");
     } finally {
       setUpdatingId(null);
     }
