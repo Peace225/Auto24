@@ -24,6 +24,8 @@ import StoreDetail from './components/features/StoreDetail';
 import SupportPage from './pages/support/SupportPage';
 import ReturnPolicyPage from './pages/support/ReturnPolicyPage';
 import FaqPage from './pages/support/FaqPage';
+import PrivacyPolicy from './pages/support/PrivacyPolicy';
+import TermsOfService from './pages/support/TermsOfService';
 
 // IMPORTS VENDEUR
 import BecomeVendorPage from './pages/vendor/BecomeVendorPage'; 
@@ -75,11 +77,11 @@ function App() {
       <CartDrawer />
 
       <Routes>
-        {/* --- 1. ROUTES CLIENTS --- */}
+        {/* --- 1. ROUTES CLIENTS (Avec Layout) --- */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           
-          {/* 🟢 RECHERCHE & CATALOGUE UNIFIÉS */}
+          {/* 🟢 RECHERCHE & CATALOGUE */}
           <Route path="/search" element={<Catalog />} />
           <Route path="/catalog" element={<Catalog />} />
           
@@ -93,9 +95,14 @@ function App() {
           <Route path="/category/:slug" element={<CategoryPage />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
+          
+          {/* ASSISTANCE & LÉGAL */}
           <Route path="/support" element={<SupportPage />} />
           <Route path="/return-policy" element={<ReturnPolicyPage />} />
           <Route path="/faq" element={<FaqPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          
           <Route path="/become-vendor" element={<BecomeVendorPage />} /> 
           <Route path="/store/:id" element={<StoreDetail />} />
         </Route>
